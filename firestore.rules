@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Toda a lógica de negócio e autorização vive no backend FastAPI, que usa o
+// Firebase Admin SDK (ignora estas regras). Clientes (frontend) nunca
+// acessam o Firestore diretamente — só via API — então aqui é deny-all.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

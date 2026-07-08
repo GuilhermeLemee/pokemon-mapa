@@ -1,0 +1,70 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+defaults:
+  run:
+    working-directory: infra
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_EMAIL }}
+
+      - run: terraform init
+
+      - run: |
+          terraform plan -no-color \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="region=${{ vars.GCP_REGION }}" \
+            -var="github_repo=${{ github.repository }}" \
+            -out=tfplan
+
+  # A aplicação real requer aprovação manual: configure o environment
+  # "production" em Settings → Environments com "required reviewers" para
+  # que este job só rode depois de alguém revisar o plano acima.
+  apply:
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA_EMAIL }}
+
+      - run: terraform init
+
+      - run: |
+          terraform apply -auto-approve -no-color \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -var="region=${{ vars.GCP_REGION }}" \
+            -var="github_repo=${{ github.repository }}"
