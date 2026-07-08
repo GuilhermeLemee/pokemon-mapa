@@ -53,6 +53,19 @@ gsutil iam ch serviceAccount:$(terraform output -raw deployer_service_account_em
 
 Isso cria a infraestrutura do **backend**. O `google_cloud_run_v2_service.backend` sobe inicialmente com uma imagem placeholder (`cloudrun/hello`) — o primeiro deploy real acontece pelo pipeline de CI/CD (`.github/workflows/backend.yml`) quando você fizer push para `main`.
 
+## `terraform apply` é sempre local — por quê
+
+O workflow `.github/workflows/terraform.yml` só roda `terraform validate` e `fmt -check` no CI (não usa nenhuma credencial de nuvem). O `apply` de verdade é feito **por você, localmente**, deliberadamente, sempre que mudar algo em `infra/`.
+
+Motivo: a service account de deploy do GitHub Actions (`deployer`) tem só as permissões mínimas para publicar a aplicação (Cloud Run, Artifact Registry, Firebase Hosting). Rodar `terraform apply` da infraestrutura completa exigiria dar a essa conta permissões de administrar IAM, service accounts e APIs do projeto — próximas de um Owner. Preferimos manter esse poder só na sua conta pessoal (autenticada via `gcloud auth login`) a colocá-lo num robô de CI que roda a cada push.
+
+Sempre que mudar algo em `infra/`, rode localmente:
+```powershell
+cd infra
+terraform plan
+terraform apply
+```
+
 ## Configurar o GitHub Actions
 
 Depois do `terraform apply`, pegue os outputs:
@@ -66,8 +79,9 @@ No GitHub, em **Settings → Secrets and variables → Actions**, crie estas *va
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` (output `workload_identity_provider`)
 - `GCP_DEPLOYER_SA_EMAIL` (output `deployer_service_account_email`)
 - `FIREBASE_PROJECT_ID` (mesmo valor de `GCP_PROJECT_ID`)
+- `VITE_FIREBASE_API_KEY`, `BACKEND_API_URL` (usados só no build do frontend)
 
-O deploy do Firebase Hosting também usa a mesma identidade OIDC (Workload Identity) do Cloud Run — não é necessário nenhum token ou chave estática salva no GitHub.
+O deploy do Firebase Hosting e do Cloud Run usa a identidade OIDC (Workload Identity) — não é necessário nenhum token ou chave estática salva no GitHub.
 
 ## Custo
 

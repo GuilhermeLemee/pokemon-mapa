@@ -12,59 +12,29 @@ on:
 
 permissions:
   contents: read
-  id-token: write
-  pull-requests: write
 
 defaults:
   run:
     working-directory: infra
 
 jobs:
-  plan:
+  # Só valida sintaxe/formatação — não requer nenhuma credencial de nuvem.
+  #
+  # `terraform apply` provisiona IAM, service accounts e APIs do projeto,
+  # o que exigiria dar à service account de CI permissões quase equivalentes
+  # a Owner. Preferimos manter esse poder só na sua conta local (você já
+  # rodou o primeiro apply manualmente — ver infra/README.md) em vez de
+  # colocá-lo num robô de CI. Mudanças de infraestrutura continuam sendo
+  # aplicadas localmente, deliberadamente, por quem administra o projeto.
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
 
-      - uses: google-github-actions/auth@v2
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA_EMAIL }}
+      - run: terraform init -backend=false
 
-      - run: terraform init
+      - run: terraform validate
 
-      - run: |
-          terraform plan -no-color \
-            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
-            -var="region=${{ vars.GCP_REGION }}" \
-            -var="github_repo=${{ github.repository }}" \
-            -out=tfplan
-
-  # A aplicação real requer aprovação manual: configure o environment
-  # "production" em Settings → Environments com "required reviewers" para
-  # que este job só rode depois de alguém revisar o plano acima.
-  apply:
-    needs: plan
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-
-      - uses: google-github-actions/auth@v2
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA_EMAIL }}
-
-      - run: terraform init
-
-      - run: |
-          terraform apply -auto-approve -no-color \
-            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
-            -var="region=${{ vars.GCP_REGION }}" \
-            -var="github_repo=${{ github.repository }}"
+      - run: terraform fmt -check -recursive
