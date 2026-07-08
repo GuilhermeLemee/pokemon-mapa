@@ -1,10 +1,54 @@
 @import "tailwindcss";
 
+@theme {
+  --color-bg-950: #05070d;
+  --color-bg-900: #090d16;
+  --color-bg-800: #0f1420;
+  --color-accent-200: #d7e6fa;
+  --color-accent-300: #bad6f7;
+  --color-accent-400: #9db8e0;
+  --color-accent-500: #7c91b6;
+  --color-hp-500: #4ade80;
+}
+
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-bg-950);
+  color: var(--color-accent-200);
+}
+
+/* Grid técnico + feixe de luz do topo — estética "blueprint" do Dark Style 4.
+   Uma única classe (não duas) porque background-image/background-size não somam
+   entre classes separadas no mesmo elemento — cada camada precisa do seu próprio
+   background-size na MESMA declaração, senão o grid "fatia" o gradiente cônico. */
+@utility bg-hero-backdrop {
+  background-image:
+    conic-gradient(
+      at 50% -5%,
+      rgba(5, 7, 13, 0) 45%,
+      rgba(124, 145, 182, 0.25) 49%,
+      rgba(124, 145, 182, 0.4) 50%,
+      rgba(124, 145, 182, 0.25) 51%,
+      rgba(5, 7, 13, 0) 55%
+    ),
+    linear-gradient(to right, rgba(186, 214, 247, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(186, 214, 247, 0.06) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    64px 64px,
+    64px 64px;
+  background-repeat: no-repeat, repeat, repeat;
+}
+
+/* Card de vidro translúcido reutilizável */
+@utility glass-card {
+  background-color: rgba(186, 214, 247, 0.04);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(186, 214, 247, 0.12);
+  border-radius: 1rem;
 }
