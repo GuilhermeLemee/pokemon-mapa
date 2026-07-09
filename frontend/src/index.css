@@ -80,20 +80,43 @@ body {
   }
 }
 
-/* Halo girando ao redor do card — mesmo princípio dos feixes de luz do
-   AuthKit, só que num anel contornando o card em vez do topo da página. */
-@utility login-card-glow {
+/* Anel fino contornando a borda do card (não preenche a caixa toda —
+   usa mask-composite: exclude pra "vazar" só a moldura, técnica
+   padrão de "gradiente de borda animado"). */
+@utility login-card-ring {
   position: absolute;
-  inset: -2px;
+  inset: 0;
   z-index: -1;
   border-radius: inherit;
+  padding: 1.5px;
   background: conic-gradient(
     from 0deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(210, 214, 224, 0.5) 8%,
-    rgba(255, 255, 255, 0) 20%
+    rgba(226, 230, 238, 0.9) 10%,
+    rgba(255, 255, 255, 0) 24%
   );
-  filter: blur(6px);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: spin 6s linear infinite;
+}
+
+/* Brilho suave por trás do anel, pra luz "vazar" um pouco pra fora
+   em vez de ficar só uma linha seca — mesma rotação do anel. */
+@utility login-card-halo {
+  position: absolute;
+  inset: -18px;
+  z-index: -2;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    rgba(210, 214, 224, 0) 0%,
+    rgba(210, 214, 224, 0.28) 10%,
+    rgba(210, 214, 224, 0) 24%
+  );
+  filter: blur(18px);
   animation: spin 6s linear infinite;
 }
 
@@ -109,7 +132,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-spin-slow,
   .login-card,
-  .login-card-glow {
+  .login-card-ring,
+  .login-card-halo {
     animation: none;
   }
 }

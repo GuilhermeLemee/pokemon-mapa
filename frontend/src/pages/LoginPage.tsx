@@ -27,9 +27,10 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative z-10 flex min-h-screen items-center justify-center overflow-hidden px-4">
+    <div className="relative z-10 flex min-h-screen items-center justify-center px-4">
       <div className="relative w-full max-w-sm">
-        <div className="login-card-glow" aria-hidden="true" />
+        <div className="login-card-halo" aria-hidden="true" />
+        <div className="login-card-ring" aria-hidden="true" />
         <span className="corner-mark -top-[3px] -left-[3px]" aria-hidden="true" />
         <span className="corner-mark -top-[3px] -right-[3px]" aria-hidden="true" />
         <span className="corner-mark -bottom-[3px] -left-[3px]" aria-hidden="true" />
