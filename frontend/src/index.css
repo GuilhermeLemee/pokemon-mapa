@@ -60,6 +60,7 @@ body {
 /* Card de login: neutro cinza/preto (não azulado), flutuando sutilmente
    em loop — igual ao "card-animated-loop" observado no AuthKit. */
 @utility login-card {
+  position: relative;
   background-color: rgba(20, 21, 26, 0.55);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -97,9 +98,10 @@ body {
 @utility login-card-ring {
   position: absolute;
   inset: 0;
-  z-index: -1;
-  border-radius: inherit;
+  z-index: 0;
+  border-radius: 1rem;
   padding: 1px;
+  pointer-events: none;
   background: conic-gradient(
     from var(--border-angle),
     rgba(255, 255, 255, 0) 0%,

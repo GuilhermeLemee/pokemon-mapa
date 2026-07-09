@@ -28,15 +28,17 @@ export function LoginPage() {
 
   return (
     <div className="relative z-10 flex min-h-screen items-center justify-center px-4">
-      <div className="relative w-full max-w-sm">
-        <div className="login-card-ring" aria-hidden="true" />
-        <span className="corner-mark -top-[3px] -left-[3px]" aria-hidden="true" />
-        <span className="corner-mark -top-[3px] -right-[3px]" aria-hidden="true" />
-        <span className="corner-mark -bottom-[3px] -left-[3px]" aria-hidden="true" />
-        <span className="corner-mark -right-[3px] -bottom-[3px]" aria-hidden="true" />
-
+      <div className="w-full max-w-sm">
         <form onSubmit={handleSubmit} className="login-card w-full space-y-4 p-8">
-          <div className="flex flex-col items-center gap-2 text-center">
+          {/* Traço de luz e cantoneiras ficam DENTRO do card — assim herdam a
+              mesma flutuação (transform) do card e nunca "descolam" dele. */}
+          <div className="login-card-ring" aria-hidden="true" />
+          <span className="corner-mark -top-[3px] -left-[3px]" aria-hidden="true" />
+          <span className="corner-mark -top-[3px] -right-[3px]" aria-hidden="true" />
+          <span className="corner-mark -bottom-[3px] -left-[3px]" aria-hidden="true" />
+          <span className="corner-mark -right-[3px] -bottom-[3px]" aria-hidden="true" />
+
+          <div className="relative flex flex-col items-center gap-2 text-center">
             <PokeballSpinner size={32} />
             <p className="text-sm font-medium text-accent-500">Pokémon Mapa</p>
             <h1 className="text-2xl font-semibold text-accent-200">Entre no mundo Pokémon</h1>
