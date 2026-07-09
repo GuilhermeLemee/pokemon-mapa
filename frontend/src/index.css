@@ -80,44 +80,56 @@ body {
   }
 }
 
-/* Anel fino contornando a borda do card (não preenche a caixa toda —
-   usa mask-composite: exclude pra "vazar" só a moldura, técnica
-   padrão de "gradiente de borda animado"). */
+/* Ângulo animável — precisa ser registrado com @property pro navegador saber
+   interpolar suavemente entre 0deg e 360deg (senão ele "pula" os valores). */
+@property --border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* Anel fino contornando a borda do card, EXATAMENTE como o AuthKit faz:
+   o elemento em si fica parado (nunca usa transform/rotate nele — isso
+   desalinharia os cantos arredondados da máscara com os do card e criaria
+   uma forma girando solta por cima, que foi o bug da tentativa anterior).
+   Em vez disso, gira o ÂNGULO dentro do conic-gradient, então só a luz se
+   move, a caixa/máscara fica sempre alinhada ao card. */
 @utility login-card-ring {
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  padding: 1.5px;
+  padding: 1px;
   background: conic-gradient(
-    from 0deg,
+    from var(--border-angle),
     rgba(255, 255, 255, 0) 0%,
-    rgba(226, 230, 238, 0.9) 10%,
-    rgba(255, 255, 255, 0) 24%
+    rgba(226, 230, 238, 0.9) 20%,
+    rgba(255, 255, 255, 0) 25%
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  animation: spin 6s linear infinite;
+  animation:
+    border-angle-spin 12s linear infinite,
+    login-ring-pulse 3s ease-in-out infinite;
 }
 
-/* Brilho suave por trás do anel, pra luz "vazar" um pouco pra fora
-   em vez de ficar só uma linha seca — mesma rotação do anel. */
-@utility login-card-halo {
-  position: absolute;
-  inset: -18px;
-  z-index: -2;
-  border-radius: inherit;
-  background: conic-gradient(
-    from 0deg,
-    rgba(210, 214, 224, 0) 0%,
-    rgba(210, 214, 224, 0.28) 10%,
-    rgba(210, 214, 224, 0) 24%
-  );
-  filter: blur(18px);
-  animation: spin 6s linear infinite;
+@keyframes border-angle-spin {
+  to {
+    --border-angle: 360deg;
+  }
+}
+
+@keyframes login-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Marcadores de canto tipo "cantoneira" (estética blueprint do AuthKit) */
@@ -132,8 +144,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-spin-slow,
   .login-card,
-  .login-card-ring,
-  .login-card-halo {
+  .login-card-ring {
     animation: none;
   }
 }
