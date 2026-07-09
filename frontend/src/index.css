@@ -57,8 +57,59 @@ body {
   animation: spin 3s linear infinite;
 }
 
+/* Card de login: neutro cinza/preto (não azulado), flutuando sutilmente
+   em loop — igual ao "card-animated-loop" observado no AuthKit. */
+@utility login-card {
+  background-color: rgba(20, 21, 26, 0.55);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.08),
+    0 16px 32px rgba(0, 0, 0, 0.4);
+  animation: card-float 7s ease-in-out infinite;
+}
+
+@keyframes card-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(3px, -7px);
+  }
+}
+
+/* Halo girando ao redor do card — mesmo princípio dos feixes de luz do
+   AuthKit, só que num anel contornando o card em vez do topo da página. */
+@utility login-card-glow {
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(210, 214, 224, 0.5) 8%,
+    rgba(255, 255, 255, 0) 20%
+  );
+  filter: blur(6px);
+  animation: spin 6s linear infinite;
+}
+
+/* Marcadores de canto tipo "cantoneira" (estética blueprint do AuthKit) */
+@utility corner-mark {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-spin-slow {
+  .animate-spin-slow,
+  .login-card,
+  .login-card-glow {
     animation: none;
   }
 }

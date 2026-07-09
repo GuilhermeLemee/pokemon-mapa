@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ACCENT_BUTTON, FIELD_INPUT, GLASS_CARD } from "../lib/ui";
+import { PokeballSpinner } from "../components/PokeballSpinner";
+import { ACCENT_BUTTON, FIELD_INPUT } from "../lib/ui";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -26,39 +27,50 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative z-10 flex min-h-screen items-center justify-center px-4">
-      <form onSubmit={handleSubmit} className={`${GLASS_CARD} w-full max-w-sm space-y-4 p-8`}>
-        <h1 className="text-2xl font-semibold text-accent-200">Pokémon Mapa</h1>
-        <p className="text-sm text-accent-500">Entre com sua conta de treinador.</p>
+    <div className="relative z-10 flex min-h-screen items-center justify-center overflow-hidden px-4">
+      <div className="relative w-full max-w-sm">
+        <div className="login-card-glow" aria-hidden="true" />
+        <span className="corner-mark -top-[3px] -left-[3px]" aria-hidden="true" />
+        <span className="corner-mark -top-[3px] -right-[3px]" aria-hidden="true" />
+        <span className="corner-mark -bottom-[3px] -left-[3px]" aria-hidden="true" />
+        <span className="corner-mark -right-[3px] -bottom-[3px]" aria-hidden="true" />
 
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-accent-300">Email</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={FIELD_INPUT}
-          />
-        </div>
+        <form onSubmit={handleSubmit} className="login-card w-full space-y-4 p-8">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <PokeballSpinner size={32} />
+            <p className="text-sm font-medium text-accent-500">Pokémon Mapa</p>
+            <h1 className="text-2xl font-semibold text-accent-200">Entre no mundo Pokémon</h1>
+          </div>
 
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-accent-300">Senha</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={FIELD_INPUT}
-          />
-        </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-accent-300">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={FIELD_INPUT}
+            />
+          </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-accent-300">Senha</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={FIELD_INPUT}
+            />
+          </div>
 
-        <button type="submit" disabled={submitting} className={`w-full ${ACCENT_BUTTON}`}>
-          {submitting ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+
+          <button type="submit" disabled={submitting} className={`w-full ${ACCENT_BUTTON}`}>
+            {submitting ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
