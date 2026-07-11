@@ -5,12 +5,14 @@ import { PokeballSpinner } from "../components/PokeballSpinner";
 import { ACCENT_BUTTON, FIELD_INPUT } from "../lib/ui";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, resetPassword } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resetStatus, setResetStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -23,6 +25,22 @@ export function LoginPage() {
       setError("Email ou senha inválidos.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setResetError(null);
+    if (!email) {
+      setResetError("Digite seu email acima primeiro.");
+      return;
+    }
+    setResetStatus("sending");
+    try {
+      await resetPassword(email);
+      setResetStatus("sent");
+    } catch {
+      setResetError("Não foi possível enviar o email. Confira o endereço e tente de novo.");
+      setResetStatus("idle");
     }
   };
 
@@ -67,6 +85,22 @@ export function LoginPage() {
                 className={FIELD_INPUT}
               />
             </div>
+
+            <div className="flex justify-end">
+              {resetStatus === "sent" ? (
+                <p className="text-xs text-emerald-400">Link de redefinição enviado para {email}.</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={resetStatus === "sending"}
+                  className="text-xs text-accent-500 hover:text-accent-300 hover:underline disabled:opacity-50"
+                >
+                  {resetStatus === "sending" ? "Enviando..." : "Esqueceu a senha?"}
+                </button>
+              )}
+            </div>
+            {resetError && <p className="text-xs text-red-400">{resetError}</p>}
 
             {error && <p className="text-sm text-red-400">{error}</p>}
 
