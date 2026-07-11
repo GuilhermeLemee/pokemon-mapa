@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import type { Pokemon } from "../lib/types";
 import { PokemonCard } from "../components/PokemonCard";
+import { GLASS_CARD } from "../lib/ui";
 
 export function DashboardPage() {
   const { player } = useAuth();
@@ -21,8 +22,8 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl bg-white dark:bg-slate-800 p-5 shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{player.display_name}</h1>
+      <section className={`${GLASS_CARD} p-5`}>
+        <h1 className="text-xl font-semibold text-accent-200">{player.display_name}</h1>
         <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Stat label="Moedas" value={player.coins} />
           <Stat label="Pokébolas" value={player.pokeballs.pokebola} />
@@ -31,12 +32,12 @@ export function DashboardPage() {
         </div>
         {player.badges.length > 0 && (
           <div className="mt-4">
-            <p className="text-sm text-slate-500 dark:text-slate-400">Insígnias</p>
+            <p className="text-sm text-accent-500">Insígnias</p>
             <div className="mt-1 flex flex-wrap gap-2">
               {player.badges.map((badge) => (
                 <span
                   key={badge}
-                  className="rounded-full bg-amber-100 dark:bg-amber-900 px-3 py-1 text-xs text-amber-800 dark:text-amber-200"
+                  className="rounded-full bg-accent-300/10 border border-accent-300/25 px-3 py-1 text-xs text-accent-300"
                 >
                   {badge}
                 </span>
@@ -47,11 +48,11 @@ export function DashboardPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Seus Pokémons</h2>
+        <h2 className="mb-3 text-lg font-semibold text-accent-200">Seus Pokémons</h2>
         {loading ? (
-          <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
+          <p className="text-accent-500">Carregando...</p>
         ) : pokemons.length === 0 ? (
-          <p className="text-slate-500 dark:text-slate-400">Nenhum pokémon capturado ainda.</p>
+          <p className="text-accent-500">Nenhum pokémon capturado ainda.</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {pokemons.map((p) => (
@@ -66,9 +67,9 @@ export function DashboardPage() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3 text-center">
-      <p className="text-lg font-semibold text-slate-900 dark:text-white">{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+    <div className="rounded-lg border border-accent-500/15 bg-bg-900/50 p-3 text-center">
+      <p className="text-lg font-semibold text-accent-200">{value}</p>
+      <p className="text-xs text-accent-500">{label}</p>
     </div>
   );
 }

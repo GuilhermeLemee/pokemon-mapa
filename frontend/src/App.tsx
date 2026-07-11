@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Layout } from "./components/Layout";
 import { RequireStaff } from "./components/RequireStaff";
+import { StarfieldBackground } from "./components/StarfieldBackground";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AdminPage } from "./pages/AdminPage";
@@ -11,7 +12,7 @@ function AppRoutes() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500 dark:text-slate-400">
+      <div className="flex min-h-screen items-center justify-center text-accent-500">
         Carregando...
       </div>
     );
@@ -47,7 +48,10 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <StarfieldBackground />
+      <div className="bg-hero-backdrop relative min-h-screen">
+        <AppRoutes />
+      </div>
     </AuthProvider>
   );
 }
