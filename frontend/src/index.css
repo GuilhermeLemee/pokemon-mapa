@@ -61,6 +61,7 @@ body {
    em loop — igual ao "card-animated-loop" observado no AuthKit. */
 @utility login-card {
   position: relative;
+  display: grid;
   background-color: rgba(20, 21, 26, 0.55);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -69,6 +70,15 @@ body {
     inset 0 1px 1px rgba(255, 255, 255, 0.08),
     0 16px 32px rgba(0, 0, 0, 0.4);
   animation: card-float 7s ease-in-out infinite;
+}
+
+/* Conteúdo real do card (título, campos, botão). Ocupa a MESMA célula de
+   grid que o anel abaixo — isso garante que os dois tenham exatamente a
+   mesma altura, sem depender de cálculo de "auto height" com elemento
+   absolutamente posicionado (que estava ficando ~18px mais baixo). */
+@utility login-card-content {
+  grid-area: 1 / 1;
+  padding: 2rem;
 }
 
 @keyframes card-float {
@@ -96,8 +106,7 @@ body {
    Em vez disso, gira o ÂNGULO dentro do conic-gradient, então só a luz se
    move, a caixa/máscara fica sempre alinhada ao card. */
 @utility login-card-ring {
-  position: absolute;
-  inset: 0;
+  grid-area: 1 / 1;
   z-index: 0;
   border-radius: 1rem;
   padding: 1px;
