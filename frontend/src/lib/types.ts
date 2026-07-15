@@ -34,3 +34,39 @@ export interface ApplyXpResult {
   levels_gained: number;
   leveled_up: boolean;
 }
+
+export type BattleType = "participant" | "wild";
+export type BattleStatus = "pending_approval" | "pending_accept" | "active" | "finished" | "declined";
+
+export interface TrainerSideHydrated {
+  uid: string;
+  pokemon_id: string;
+  species: string;
+  level: number;
+  current_hp: number;
+  max_hp: number;
+}
+
+export interface WildSideHydrated {
+  is_wild: true;
+  species: string;
+  level: number;
+  current_hp: number;
+  max_hp: number;
+}
+
+export interface BattleRoom {
+  id: string;
+  type: BattleType;
+  status: BattleStatus;
+  created_by: string;
+  side_a: TrainerSideHydrated;
+  side_b: TrainerSideHydrated | WildSideHydrated;
+  suggested_xp: number | null;
+}
+
+export interface BattleActionResult {
+  room: BattleRoom;
+  damage_dealt?: number | null;
+  capture_success?: boolean | null;
+}

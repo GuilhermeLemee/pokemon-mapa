@@ -6,6 +6,8 @@ import { StarfieldBackground } from "./components/StarfieldBackground";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AdminPage } from "./pages/AdminPage";
+import { BattlesPage } from "./pages/BattlesPage";
+import { BattleRoomPage } from "./pages/BattleRoomPage";
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -31,6 +33,8 @@ function AppRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/battles" element={<BattlesPage />} />
+        <Route path="/battles/:id" element={<BattleRoomPage />} />
         <Route
           path="/admin"
           element={

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from google.cloud.firestore import Client
 
-from app.models import Player, PlayerUpdate, Pokemon, Role
+from app.models import BattleRoom, BattleStatus, Player, PlayerUpdate, Pokemon, Role, TrainerSide, WildSide
 
 
 class PlayerRepository:
@@ -88,3 +88,69 @@ class PokemonRepository:
                 "created_at": datetime.now(UTC),
             }
         )
+
+
+def _side_from_dict(data: dict) -> TrainerSide | WildSide:
+    if data.get("is_wild"):
+        return WildSide(**data)
+    return TrainerSide(**data)
+
+
+class BattleRoomRepository:
+    def __init__(self, db: Client):
+        self._db = db
+
+    def _rooms(self):
+        return self._db.collection("battleRooms")
+
+    def _to_model(self, doc) -> BattleRoom:
+        data = doc.to_dict()
+        return BattleRoom(
+            id=doc.id,
+            type=data["type"],
+            status=data["status"],
+            created_by=data["created_by"],
+            side_a=_side_from_dict(data["side_a"]),
+            side_b=_side_from_dict(data["side_b"]),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+            finished_at=data.get("finished_at"),
+        )
+
+    def get(self, room_id: str) -> BattleRoom:
+        doc = self._rooms().document(room_id).get()
+        if not doc.exists:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Sala de batalha não encontrada")
+        return self._to_model(doc)
+
+    def list_for_user(self, uid: str, include_pending_approval: bool) -> list[BattleRoom]:
+        rooms = [self._to_model(doc) for doc in self._rooms().stream()]
+        result = [
+            room
+            for room in rooms
+            if room.side_a.uid == uid or (isinstance(room.side_b, TrainerSide) and room.side_b.uid == uid)
+        ]
+        if include_pending_approval:
+            pending = [
+                room
+                for room in rooms
+                if room.status == BattleStatus.PENDING_APPROVAL and room not in result
+            ]
+            result.extend(pending)
+        return result
+
+    def create(self, room_id: str, room: BattleRoom) -> BattleRoom:
+        now = datetime.now(UTC)
+        data = room.model_dump(exclude={"id"}, mode="json")
+        data["created_at"] = now
+        data["updated_at"] = now
+        self._rooms().document(room_id).set(data)
+        return self.get(room_id)
+
+    def update(self, room_id: str, updates: dict) -> BattleRoom:
+        updates = {**updates, "updated_at": datetime.now(UTC)}
+        doc_ref = self._rooms().document(room_id)
+        if not doc_ref.get().exists:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Sala de batalha não encontrada")
+        doc_ref.update(updates)
+        return self.get(room_id)

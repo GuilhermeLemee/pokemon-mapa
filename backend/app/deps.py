@@ -1,7 +1,7 @@
 from google.cloud.firestore import Client
 
 from app.firebase import get_firestore_client
-from app.repository import PlayerRepository, PokemonRepository
+from app.repository import BattleRoomRepository, PlayerRepository, PokemonRepository
 
 
 def get_db() -> Client:
@@ -14,3 +14,7 @@ def get_player_repo() -> PlayerRepository:
 
 def get_pokemon_repo() -> PokemonRepository:
     return PokemonRepository(get_db())
+
+
+def get_battle_repo() -> BattleRoomRepository:
+    return BattleRoomRepository(get_db())

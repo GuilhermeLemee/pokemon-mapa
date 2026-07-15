@@ -37,6 +37,9 @@ export function Layout() {
       <header className="border-b border-accent-500/15 bg-bg-950/60 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center justify-end px-4 py-3">
           <nav className="flex items-center gap-4 text-sm">
+            <Link to="/battles" className="text-accent-300 hover:text-accent-200 hover:underline">
+              Batalhas
+            </Link>
             {isStaff && (
               <Link to="/admin" className="text-accent-300 hover:text-accent-200 hover:underline">
                 Painel do Mestre

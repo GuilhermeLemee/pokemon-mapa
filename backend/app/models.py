@@ -63,3 +63,83 @@ class ApplyXpResult(BaseModel):
 
 class RoleChangeRequest(BaseModel):
     role: Role
+
+
+class BattleType(StrEnum):
+    PARTICIPANT = "participant"
+    WILD = "wild"
+
+
+class BattleStatus(StrEnum):
+    PENDING_APPROVAL = "pending_approval"
+    PENDING_ACCEPT = "pending_accept"
+    ACTIVE = "active"
+    FINISHED = "finished"
+    DECLINED = "declined"
+
+
+class TrainerSide(BaseModel):
+    uid: str
+    pokemon_id: str
+
+
+class WildSide(BaseModel):
+    is_wild: bool = True
+    species: str
+    level: int
+    current_hp: int
+    max_hp: int
+
+
+class BattleRoom(BaseModel):
+    id: str
+    type: BattleType
+    status: BattleStatus
+    created_by: str
+    side_a: TrainerSide
+    side_b: TrainerSide | WildSide
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class CreateParticipantBattleRequest(BaseModel):
+    my_pokemon_id: str
+    opponent_uid: str
+
+
+class CreateWildBattleRequest(BaseModel):
+    target_uid: str
+    target_pokemon_id: str
+    wild_species: str
+    wild_level: int = Field(gt=0)
+
+
+class ApproveBattleRequest(BaseModel):
+    opponent_pokemon_id: str
+
+
+class HitRequest(BaseModel):
+    target: str = Field(pattern="^[ab]$")
+    advantage: bool = False
+
+
+class MultiAttackRequest(BaseModel):
+    target: str = Field(pattern="^[ab]$")
+    validated: bool
+    hit_count: int = Field(ge=0, default=0)
+
+
+class CaptureRequest(BaseModel):
+    rounds_won: int = Field(ge=0, le=3)
+
+
+class SwapRequest(BaseModel):
+    side: str = Field(pattern="^[ab]$")
+    pokemon_id: str
+
+
+class BattleActionResult(BaseModel):
+    room: BattleRoom
+    damage_dealt: int | None = None
+    capture_success: bool | None = None

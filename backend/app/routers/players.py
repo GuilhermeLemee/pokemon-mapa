@@ -11,9 +11,12 @@ router = APIRouter(prefix="/players", tags=["players"])
 
 @router.get("", response_model=list[Player])
 def list_players(
-    _user: CurrentUser = Depends(require_staff),
+    _user: CurrentUser = Depends(get_current_user),
     players: PlayerRepository = Depends(get_player_repo),
 ) -> list[Player]:
+    # Qualquer jogador autenticado pode ver a lista (não só staff) — necessário
+    # para escolher um oponente ao desafiar alguém para batalha. Grupo pequeno
+    # e de confiança (mesa de RPG entre amigos), sem dado sensível exposto.
     return players.list_all()
 
 
