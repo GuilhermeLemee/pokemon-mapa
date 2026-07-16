@@ -1,14 +1,32 @@
+import { useEffect, useState } from "react";
+import { spriteUrlForName, searchSpecies } from "../lib/pokeapi";
 import type { Pokemon } from "../lib/types";
 import { GLASS_CARD } from "../lib/ui";
 
 export function PokemonCard({ pokemon, children }: { pokemon: Pokemon; children?: React.ReactNode }) {
   const hpPercent = Math.round((pokemon.current_hp / pokemon.max_hp) * 100);
   const xpPercent = Math.round((pokemon.current_xp / pokemon.xp_to_next_level) * 100);
+  const [sprite, setSprite] = useState<string | null>(() => spriteUrlForName(pokemon.species));
+
+  useEffect(() => {
+    if (sprite) return;
+    let cancelled = false;
+    searchSpecies(pokemon.species, 1).then((matches) => {
+      if (!cancelled && matches[0]) setSprite(matches[0].spriteUrl);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pokemon.species]);
 
   return (
     <div className={`${GLASS_CARD} p-4`}>
-      <div className="flex items-baseline justify-between">
-        <h3 className="font-semibold text-accent-200">{pokemon.nickname}</h3>
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {sprite && <img src={sprite} alt="" className="h-10 w-10" loading="lazy" />}
+          <h3 className="font-semibold text-accent-200">{pokemon.nickname}</h3>
+        </div>
         <span className="text-xs text-accent-500">{pokemon.species}</span>
       </div>
       <p className="text-sm text-accent-500">Nível {pokemon.level}</p>

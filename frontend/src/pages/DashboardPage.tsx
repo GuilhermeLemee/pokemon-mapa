@@ -1,24 +1,42 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import type { Pokemon } from "../lib/types";
 import { PokemonCard } from "../components/PokemonCard";
 import { GLASS_CARD } from "../lib/ui";
+
+const MAX_PARTY_SIZE = 6;
 
 export function DashboardPage() {
   const { player } = useAuth();
   const [pokemons, setPokemons] = useState<Pokemon[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     if (!player) return;
     api
       .get<Pokemon[]>(`/players/${player.uid}/pokemons`)
       .then(setPokemons)
       .finally(() => setLoading(false));
-  }, [player]);
+  };
+
+  useEffect(load, [player]);
 
   if (!player) return null;
+
+  const party = pokemons.filter((p) => p.in_party);
+  const box = pokemons.filter((p) => !p.in_party);
+
+  const moveTo = async (pokemon: Pokemon, inParty: boolean) => {
+    setError(null);
+    try {
+      await api.post(`/players/${player.uid}/pokemons/${pokemon.id}/party`, { in_party: inParty });
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao mover pokémon.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -47,16 +65,54 @@ export function DashboardPage() {
         )}
       </section>
 
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-accent-200">Seus Pokémons</h2>
+        <h2 className="mb-3 text-lg font-semibold text-accent-200">
+          Party ({party.length}/{MAX_PARTY_SIZE})
+        </h2>
         {loading ? (
           <p className="text-accent-500">Carregando...</p>
-        ) : pokemons.length === 0 ? (
-          <p className="text-accent-500">Nenhum pokémon capturado ainda.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {pokemons.map((p) => (
-              <PokemonCard key={p.id} pokemon={p} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {party.map((p) => (
+              <PokemonCard key={p.id} pokemon={p}>
+                <button
+                  onClick={() => moveTo(p, false)}
+                  className="mt-3 text-xs text-accent-500 hover:text-accent-300"
+                >
+                  Mover para a caixa
+                </button>
+              </PokemonCard>
+            ))}
+            {Array.from({ length: MAX_PARTY_SIZE - party.length }).map((_, i) => (
+              <div
+                key={`empty-${i}`}
+                className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-accent-500/25 text-sm text-accent-500"
+              >
+                Vazio
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold text-accent-200">Caixa</h2>
+        {!loading && box.length === 0 ? (
+          <p className="text-accent-500">Nenhum pokémon na caixa.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {box.map((p) => (
+              <PokemonCard key={p.id} pokemon={p}>
+                <button
+                  onClick={() => moveTo(p, true)}
+                  disabled={party.length >= MAX_PARTY_SIZE}
+                  className="mt-3 text-xs text-accent-500 hover:text-accent-300 disabled:opacity-40"
+                >
+                  Mover para a party
+                </button>
+              </PokemonCard>
             ))}
           </div>
         )}

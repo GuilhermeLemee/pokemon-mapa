@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ImageButton } from "../components/ImageButton";
+import { PokemonSpeciesAutocomplete } from "../components/PokemonSpeciesAutocomplete";
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../lib/api";
 import { STAFF_ROLES, type BattleRoom, type Player, type Pokemon } from "../lib/types";
@@ -47,6 +49,7 @@ export function BattlesPage() {
       <section className="flex flex-wrap gap-3">
         <ChallengeForm onCreated={load} />
         {isStaff && <WildEncounterForm onCreated={load} />}
+        <GymBattleStub />
       </section>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
@@ -95,6 +98,32 @@ function RoomCard({ room }: { room: BattleRoom }) {
   );
 }
 
+function GymBattleStub() {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <ImageButton
+        src="/battle-buttons/button-gym.png"
+        alt="Batalha de Ginásio"
+        onClick={() => setOpen(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`${GLASS_CARD} w-full max-w-sm space-y-3 p-4`}>
+      <p className="text-sm font-medium text-accent-200">Batalha de Ginásio</p>
+      <p className="text-sm text-accent-500">
+        Em breve — o catálogo de líderes de ginásio ainda não foi implementado.
+      </p>
+      <button onClick={() => setOpen(false)} className="px-3 text-sm text-accent-500 hover:text-accent-300">
+        Fechar
+      </button>
+    </div>
+  );
+}
+
 function ChallengeForm({ onCreated }: { onCreated: () => void }) {
   const { player } = useAuth();
   const [open, setOpen] = useState(false);
@@ -133,9 +162,11 @@ function ChallengeForm({ onCreated }: { onCreated: () => void }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className={ACCENT_BUTTON}>
-        Desafiar jogador
-      </button>
+      <ImageButton
+        src="/battle-buttons/button-challenge.png"
+        alt="Desafiar jogador"
+        onClick={() => setOpen(true)}
+      />
     );
   }
 
@@ -144,7 +175,7 @@ function ChallengeForm({ onCreated }: { onCreated: () => void }) {
       <p className="text-sm font-medium text-accent-200">Desafiar jogador</p>
       <select value={myPokemonId} onChange={(e) => setMyPokemonId(e.target.value)} className={FIELD_INPUT}>
         <option value="">Seu pokémon</option>
-        {pokemons.map((p) => (
+        {pokemons.filter((p) => p.in_party).map((p) => (
           <option key={p.id} value={p.id}>
             {p.nickname} (nv. {p.level})
           </option>
@@ -225,9 +256,11 @@ function WildEncounterForm({ onCreated }: { onCreated: () => void }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className={ACCENT_BUTTON}>
-        Criar encontro selvagem
-      </button>
+      <ImageButton
+        src="/battle-buttons/button-wild.png"
+        alt="Criar encontro selvagem"
+        onClick={() => setOpen(true)}
+      />
     );
   }
 
@@ -244,19 +277,13 @@ function WildEncounterForm({ onCreated }: { onCreated: () => void }) {
       </select>
       <select value={targetPokemonId} onChange={(e) => setTargetPokemonId(e.target.value)} className={FIELD_INPUT}>
         <option value="">Pokémon do participante</option>
-        {pokemons.map((p) => (
+        {pokemons.filter((p) => p.in_party).map((p) => (
           <option key={p.id} value={p.id}>
             {p.nickname} (nv. {p.level})
           </option>
         ))}
       </select>
-      <input
-        type="text"
-        placeholder="Espécie selvagem"
-        value={wildSpecies}
-        onChange={(e) => setWildSpecies(e.target.value)}
-        className={FIELD_INPUT}
-      />
+      <PokemonSpeciesAutocomplete value={wildSpecies} onChange={setWildSpecies} placeholder="Espécie selvagem" />
       <input
         type="number"
         min={1}

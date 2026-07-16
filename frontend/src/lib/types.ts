@@ -27,6 +27,7 @@ export interface Pokemon {
   current_hp: number;
   max_hp: number;
   moves: string[];
+  in_party: boolean;
 }
 
 export interface ApplyXpResult {

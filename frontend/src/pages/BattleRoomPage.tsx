@@ -221,7 +221,9 @@ function SwapPanel({
 
   useEffect(() => {
     if (!open) return;
-    api.get<Pokemon[]>(`/players/${uid}/pokemons`).then((all) => setPokemons(all.filter((p) => p.current_hp > 0)));
+    api
+      .get<Pokemon[]>(`/players/${uid}/pokemons`)
+      .then((all) => setPokemons(all.filter((p) => p.current_hp > 0 && p.in_party)));
   }, [open, uid]);
 
   const doSwap = async (pokemonId: string) => {

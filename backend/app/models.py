@@ -48,6 +48,11 @@ class Pokemon(BaseModel):
     max_hp: int
     moves: list[str] = Field(default_factory=list)
     caught_at: datetime | None = None
+    in_party: bool = True
+
+
+class PartyUpdateRequest(BaseModel):
+    in_party: bool
 
 
 class ApplyXpRequest(BaseModel):

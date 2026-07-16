@@ -1,0 +1,81 @@
+import { useEffect, useRef, useState } from "react";
+import { searchSpecies, type PokemonSpecies } from "../lib/pokeapi";
+import { FIELD_INPUT } from "../lib/ui";
+
+export function PokemonSpeciesAutocomplete({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (species: string) => void;
+  placeholder?: string;
+}) {
+  const [query, setQuery] = useState(value);
+  const [results, setResults] = useState<PokemonSpecies[]>([]);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setQuery(value), [value]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+    searchSpecies(query).then((matches) => {
+      if (!cancelled) setResults(matches);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        className={FIELD_INPUT}
+      />
+      {open && results.length > 0 && (
+        <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-accent-500/25 bg-bg-900/95 backdrop-blur-sm">
+          {results.map((species) => (
+            <li key={species.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(species.displayName);
+                  setQuery(species.displayName);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-accent-200 hover:bg-accent-300/10"
+              >
+                <img src={species.spriteUrl} alt="" className="h-8 w-8" loading="lazy" />
+                {species.displayName}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
