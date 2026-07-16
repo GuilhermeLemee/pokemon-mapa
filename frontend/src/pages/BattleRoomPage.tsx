@@ -3,11 +3,14 @@ import { useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../lib/api";
 import { isMultiHitMove } from "../lib/multiHitMoves";
-import { animatedSpriteUrl, fetchLearnableMoves } from "../lib/pokeapi";
+import { animatedSpriteUrl, fetchLearnableMoves, fetchMoveType, fetchPokemonTypes } from "../lib/pokeapi";
+import { isSuperEffective, typeColor } from "../lib/typeChart";
 import { STAFF_ROLES, type BattleActionResult, type BattleRoom, type Player, type Pokemon } from "../lib/types";
 import { ACCENT_BUTTON, FIELD_INPUT, GLASS_CARD } from "../lib/ui";
 
 const POLL_INTERVAL_MS = 5000;
+const MAX_LOG_ENTRIES = 7;
+const MAX_BATTLE_MOVES = 6;
 const BALL_LABELS: Record<string, string> = {
   pokebola: "Pokébola",
   superbola: "Superbola",
@@ -19,9 +22,13 @@ export function BattleRoomPage() {
   const { player } = useAuth();
   const [room, setRoom] = useState<BattleRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [log, setLog] = useState<string[]>([]);
 
   const isStaff = player && STAFF_ROLES.includes(player.role);
+
+  const pushLog = useCallback((msg: string) => {
+    setLog((prev) => [msg, ...prev].slice(0, MAX_LOG_ENTRIES));
+  }, []);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -45,7 +52,6 @@ export function BattleRoomPage() {
   const isWild = "is_wild" in room.side_b;
 
   const handleAction = async (action: () => Promise<void>) => {
-    setFeedback(null);
     try {
       await action();
       load();
@@ -80,43 +86,99 @@ export function BattleRoomPage() {
         <ApprovalPanel room={room} onDone={load} />
       )}
 
-      {feedback && <p className="text-sm text-emerald-400">{feedback}</p>}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <PartySidebar uid={room.side_a.uid} activePokemonId={room.side_a.pokemon_id} />
 
-      <div className={`${GLASS_CARD} p-5`}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <SideCard
-            room={room}
-            side="a"
-            isStaff={!!isStaff}
-            onDamage={setFeedback}
-            onError={setError}
-            reload={load}
-          />
-          <SideCard
-            room={room}
-            side="b"
-            isStaff={!!isStaff}
-            onDamage={setFeedback}
-            onError={setError}
-            reload={load}
-          />
+        <div className="flex-1 space-y-4">
+          <div className={`${GLASS_CARD} p-5`}>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_220px]">
+              <SideCard room={room} side="a" isStaff={!!isStaff} onLog={pushLog} onError={setError} reload={load} />
+              <SideCard room={room} side="b" isStaff={!!isStaff} onLog={pushLog} onError={setError} reload={load} />
+              <BattleLog entries={log} />
+            </div>
+
+            {isStaff && room.status === "active" && room.suggested_xp && (
+              <div className="mt-4 flex items-center justify-between border-t border-accent-500/15 pt-4">
+                <p className="text-sm text-accent-300">XP sugerido para o vencedor: {room.suggested_xp}</p>
+                <button
+                  className="text-sm text-accent-300 hover:text-accent-200 hover:underline"
+                  onClick={() => handleAction(() => api.post(`/battles/${room.id}/finish`, {}))}
+                >
+                  Finalizar batalha
+                </button>
+              </div>
+            )}
+          </div>
+
+          {isStaff && isWild && room.status === "active" && (
+            <CapturePanel room={room} onDone={load} onLog={pushLog} onError={setError} />
+          )}
         </div>
 
-        {isStaff && room.status === "active" && room.suggested_xp && (
-          <div className="mt-4 flex items-center justify-between border-t border-accent-500/15 pt-4">
-            <p className="text-sm text-accent-300">XP sugerido para o vencedor: {room.suggested_xp}</p>
-            <button
-              className="text-sm text-accent-300 hover:text-accent-200 hover:underline"
-              onClick={() => handleAction(() => api.post(`/battles/${room.id}/finish`, {}))}
-            >
-              Finalizar batalha
-            </button>
-          </div>
+        {!isWild && "uid" in room.side_b && (
+          <PartySidebar uid={room.side_b.uid} activePokemonId={room.side_b.pokemon_id} />
         )}
       </div>
+    </div>
+  );
+}
 
-      {isStaff && isWild && room.status === "active" && (
-        <CapturePanel room={room} onDone={load} onFeedback={setFeedback} onError={setError} />
+function BattleLog({ entries }: { entries: string[] }) {
+  return (
+    <div className="rounded-lg border border-accent-500/15 bg-bg-900/40 p-3 text-left">
+      <p className="mb-2 text-xs font-medium text-accent-500">Log de batalha</p>
+      {entries.length === 0 ? (
+        <p className="text-xs text-accent-500">Nenhuma ação ainda.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {entries.map((entry, i) => (
+            <li key={i} className="border-b border-accent-500/10 pb-1 text-xs text-accent-300 last:border-0">
+              {entry}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function PartySidebar({ uid, activePokemonId }: { uid: string; activePokemonId: string }) {
+  const [party, setParty] = useState<Pokemon[]>([]);
+
+  useEffect(() => {
+    api.get<Pokemon[]>(`/players/${uid}/pokemons`).then((all) => setParty(all.filter((p) => p.in_party)));
+  }, [uid]);
+
+  const slots: (Pokemon | null)[] = [...party, ...Array(6).fill(null)].slice(0, 6);
+
+  return (
+    <div className="flex flex-row gap-2 lg:w-16 lg:flex-col">
+      {slots.map((p, i) =>
+        p ? (
+          <div
+            key={p.id}
+            title={p.nickname}
+            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border ${
+              p.id === activePokemonId
+                ? "border-accent-300 bg-accent-300/10"
+                : p.current_hp <= 0
+                  ? "border-accent-500/10 opacity-30 grayscale"
+                  : "border-accent-500/20"
+            }`}
+          >
+            <img
+              src={animatedSpriteUrl(p.species)}
+              alt={p.nickname}
+              className="h-10 w-10 object-contain"
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <div
+            key={`empty-${i}`}
+            className="h-14 w-14 shrink-0 rounded-lg border border-dashed border-accent-500/15"
+          />
+        ),
       )}
     </div>
   );
@@ -128,8 +190,6 @@ function sideDisplay(side: BattleRoom["side_a"] | BattleRoom["side_b"]) {
   }
   return { title: "Treinador", subtitle: `${side.species} · nv. ${side.level}` };
 }
-
-const MAX_BATTLE_MOVES = 6;
 
 /** Retorna o pool de golpes do lado: até 8 conhecidos (persistidos) pro
  * treinador, ou até 6 inferidos por nível pro selvagem (sem pool persistente). */
@@ -164,14 +224,14 @@ function SideCard({
   room,
   side,
   isStaff,
-  onDamage,
+  onLog,
   onError,
   reload,
 }: {
   room: BattleRoom;
   side: "a" | "b";
   isStaff: boolean;
-  onDamage: (msg: string) => void;
+  onLog: (msg: string) => void;
   onError: (msg: string) => void;
   reload: () => void;
 }) {
@@ -183,9 +243,12 @@ function SideCard({
   const pool = useSideMoves(data);
   const [activeMoves, setActiveMoves] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [activeMove, setActiveMove] = useState<string | null>(null);
+  const [hasActed, setHasActed] = useState(false);
+  const [pendingMultiMove, setPendingMultiMove] = useState<string | null>(null);
   const [hitCount, setHitCount] = useState("1");
   const [validated, setValidated] = useState(true);
+  const [busyMove, setBusyMove] = useState<string | null>(null);
+  const [moveTypes, setMoveTypes] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     setActiveMoves((prev) => {
@@ -194,6 +257,17 @@ function SideCard({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pool.join("|")]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(activeMoves.map((m) => fetchMoveType(m).then((t) => [m, t] as const))).then((pairs) => {
+      if (!cancelled) setMoveTypes(Object.fromEntries(pairs));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMoves.join("|")]);
 
   const toggleActiveMove = (move: string) => {
     setActiveMoves((prev) => {
@@ -206,36 +280,66 @@ function SideCard({
   const targetSide = side === "a" ? "b" : "a";
   const targetTitle = sideDisplay(opponentData).title;
 
-  const applyHit = async (advantage: boolean) => {
-    setActiveMove(null);
+  const applySingleHit = async (move: string) => {
+    setBusyMove(move);
+    let advantage = false;
+    try {
+      const moveType = await fetchMoveType(move);
+      if (moveType) {
+        const defenderTypes = await fetchPokemonTypes(opponentData.species);
+        advantage = isSuperEffective(moveType, defenderTypes);
+      }
+    } catch {
+      advantage = false;
+    }
     try {
       const result = await api.post<BattleActionResult>(`/battles/${room.id}/hit`, {
         target: targetSide,
         advantage,
       });
-      onDamage(`${moveDisplayName(activeMove ?? "")}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}.`);
+      setHasActed(true);
+      onLog(
+        `${moveDisplayName(move)}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}${
+          advantage ? " (super efetivo!)" : ""
+        }.`,
+      );
       reload();
     } catch (err) {
       onError(err instanceof ApiError ? err.message : "Erro ao aplicar dano.");
+    } finally {
+      setBusyMove(null);
     }
   };
 
   const applyMultiAttack = async () => {
+    if (!pendingMultiMove) return;
+    const move = pendingMultiMove;
     try {
       const result = await api.post<BattleActionResult>(`/battles/${room.id}/multi-attack`, {
         target: targetSide,
         validated,
         hit_count: Number(hitCount),
       });
-      setActiveMove(null);
-      onDamage(
+      setHasActed(true);
+      onLog(
         validated
-          ? `${moveDisplayName(activeMove ?? "")}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}.`
-          : `${moveDisplayName(activeMove ?? "")} falhou na validação.`,
+          ? `${moveDisplayName(move)}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}.`
+          : `${moveDisplayName(move)} falhou na validação.`,
       );
+      setPendingMultiMove(null);
       reload();
     } catch (err) {
       onError(err instanceof ApiError ? err.message : "Erro no ataque múltiplo.");
+    }
+  };
+
+  const handleMoveClick = (move: string) => {
+    if (isMultiHitMove(move)) {
+      setPendingMultiMove(pendingMultiMove === move ? null : move);
+      setHitCount("1");
+      setValidated(true);
+    } else {
+      applySingleHit(move);
     }
   };
 
@@ -260,7 +364,7 @@ function SideCard({
 
       {isStaff && room.status === "active" && data.current_hp > 0 && (
         <div className="mt-3">
-          {pool.length > MAX_BATTLE_MOVES && (
+          {!hasActed && pool.length > MAX_BATTLE_MOVES && (
             <button
               onClick={() => setPickerOpen((v) => !v)}
               className="mb-2 w-full text-xs text-accent-500 hover:text-accent-300"
@@ -269,7 +373,7 @@ function SideCard({
             </button>
           )}
 
-          {pickerOpen && (
+          {!hasActed && pickerOpen && (
             <div className="mb-2 grid grid-cols-2 gap-1 text-left">
               {pool.map((move) => (
                 <label key={move} className="flex items-center gap-1 text-xs text-accent-300">
@@ -289,25 +393,28 @@ function SideCard({
             <p className="text-xs text-accent-500">Sem ataques definidos.</p>
           ) : (
             <div className="grid grid-cols-2 gap-1.5">
-              {activeMoves.map((move) => (
-                <button
-                  key={move}
-                  onClick={() => {
-                    setActiveMove(activeMove === move ? null : move);
-                    setHitCount("1");
-                    setValidated(true);
-                  }}
-                  className="rounded-lg border border-accent-500/25 px-2 py-1.5 text-xs text-accent-300 hover:border-accent-300"
-                >
-                  {moveDisplayName(move)}
-                </button>
-              ))}
+              {activeMoves.map((move) => {
+                const color = typeColor(moveTypes[move]);
+                return (
+                  <button
+                    key={move}
+                    onClick={() => handleMoveClick(move)}
+                    disabled={busyMove === move}
+                    style={color ? { borderColor: color, color } : undefined}
+                    className="rounded-lg border border-accent-500/25 px-2 py-1.5 text-xs text-accent-300 hover:opacity-80 disabled:opacity-50"
+                  >
+                    {busyMove === move ? "..." : moveDisplayName(move)}
+                  </button>
+                );
+              })}
             </div>
           )}
 
-          {activeMove && isMultiHitMove(activeMove) && (
+          {pendingMultiMove && (
             <div className="mt-2 space-y-2 rounded-lg border border-accent-500/15 p-2 text-left">
-              <p className="text-xs font-medium text-accent-200">{moveDisplayName(activeMove)} (múltiplos golpes)</p>
+              <p className="text-xs font-medium text-accent-200">
+                {moveDisplayName(pendingMultiMove)} (múltiplos golpes)
+              </p>
               <label className="flex items-center gap-2 text-xs text-accent-500">
                 <input type="checkbox" checked={validated} onChange={(e) => setValidated(e.target.checked)} />
                 Validado no dado
@@ -322,17 +429,6 @@ function SideCard({
               />
               <button onClick={applyMultiAttack} className={`w-full text-sm ${ACCENT_BUTTON}`}>
                 Aplicar
-              </button>
-            </div>
-          )}
-
-          {activeMove && !isMultiHitMove(activeMove) && (
-            <div className="mt-2 flex justify-center gap-2">
-              <button onClick={() => applyHit(false)} className="rounded-lg border border-accent-500/25 px-2 py-1 text-xs text-accent-300">
-                Normal
-              </button>
-              <button onClick={() => applyHit(true)} className="rounded-lg border border-red-400/40 px-2 py-1 text-xs text-red-400">
-                Vantagem
               </button>
             </div>
           )}
@@ -413,12 +509,12 @@ function SwapPanel({
 function CapturePanel({
   room,
   onDone,
-  onFeedback,
+  onLog,
   onError,
 }: {
   room: BattleRoom;
   onDone: () => void;
-  onFeedback: (msg: string) => void;
+  onLog: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -441,7 +537,7 @@ function CapturePanel({
         ball_type: ballType,
         success,
       });
-      onFeedback(result.capture_success ? "Captura bem-sucedida!" : "Captura falhou.");
+      onLog(result.capture_success ? "Captura bem-sucedida!" : "Captura falhou.");
       loadTrainer();
       onDone();
     } catch (err) {

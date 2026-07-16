@@ -18,7 +18,13 @@ export interface LearnableMove {
   level: number;
 }
 
-const learnableMovesCache = new Map<string, Promise<LearnableMove[]>>();
+interface SpeciesDetail {
+  types: string[];
+  learnableMoves: LearnableMove[];
+}
+
+const speciesDetailCache = new Map<string, Promise<SpeciesDetail>>();
+const moveTypeCache = new Map<string, Promise<string | null>>();
 
 function idFromUrl(url: string): number {
   const match = url.match(/\/pokemon\/(\d+)\//);
@@ -84,14 +90,14 @@ export function animatedSpriteUrl(speciesSlug: string): string {
   return `${ANIMATED_SPRITE_BASE}/${slug}.gif`;
 }
 
-export async function fetchLearnableMoves(speciesSlug: string, level: number): Promise<LearnableMove[]> {
+function fetchSpeciesDetail(speciesSlug: string): Promise<SpeciesDetail> {
   const slug = speciesSlug.trim().toLowerCase().replace(/\s+/g, "-");
-  if (!learnableMovesCache.has(slug)) {
-    learnableMovesCache.set(
+  if (!speciesDetailCache.has(slug)) {
+    speciesDetailCache.set(
       slug,
       fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`)
         .then((res) => res.json())
-        .then((data: { moves: PokeApiMoveEntry[] }) => {
+        .then((data: { moves: PokeApiMoveEntry[]; types: { type: { name: string } }[] }) => {
           const byName = new Map<string, number>();
           for (const entry of data.moves) {
             const levelUpDetails = entry.version_group_details.filter(
@@ -102,14 +108,43 @@ export async function fetchLearnableMoves(speciesSlug: string, level: number): P
             const existing = byName.get(entry.move.name);
             if (existing === undefined || minLevel < existing) byName.set(entry.move.name, minLevel);
           }
-          return Array.from(byName.entries())
+          const learnableMoves = Array.from(byName.entries())
             .map(([name, moveLevel]) => ({ name, displayName: capitalize(name), level: moveLevel }))
             .sort((a, b) => a.level - b.level);
+          const types = data.types.map((t) => t.type.name);
+          return { types, learnableMoves };
         }),
     );
   }
-  const all = await learnableMovesCache.get(slug)!;
-  return all.filter((m) => m.level <= level && m.level > 0);
+  return speciesDetailCache.get(slug)!;
+}
+
+export async function fetchLearnableMoves(speciesSlug: string, level: number): Promise<LearnableMove[]> {
+  const { learnableMoves } = await fetchSpeciesDetail(speciesSlug);
+  return learnableMoves.filter((m) => m.level <= level && m.level > 0);
+}
+
+export async function fetchPokemonTypes(speciesSlug: string): Promise<string[]> {
+  try {
+    const { types } = await fetchSpeciesDetail(speciesSlug);
+    return types;
+  } catch {
+    return [];
+  }
+}
+
+export function fetchMoveType(moveSlug: string): Promise<string | null> {
+  const slug = moveSlug.trim().toLowerCase().replace(/\s+/g, "-");
+  if (!moveTypeCache.has(slug)) {
+    moveTypeCache.set(
+      slug,
+      fetch(`https://pokeapi.co/api/v2/move/${slug}`)
+        .then((res) => res.json())
+        .then((data: { type: { name: string } }) => data.type.name)
+        .catch(() => null),
+    );
+  }
+  return moveTypeCache.get(slug)!;
 }
 
 interface PokeApiMoveEntry {
