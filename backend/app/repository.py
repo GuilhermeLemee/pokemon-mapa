@@ -134,20 +134,24 @@ class BattleRoomRepository:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Sala de batalha não encontrada")
         return self._to_model(doc)
 
-    def list_for_user(self, uid: str, include_pending_approval: bool) -> list[BattleRoom]:
+    def list_for_user(self, uid: str, is_staff: bool) -> list[BattleRoom]:
         rooms = [self._to_model(doc) for doc in self._rooms().stream()]
         result = [
             room
             for room in rooms
             if room.side_a.uid == uid or (isinstance(room.side_b, TrainerSide) and room.side_b.uid == uid)
         ]
-        if include_pending_approval:
-            pending = [
-                room
-                for room in rooms
-                if room.status == BattleStatus.PENDING_APPROVAL and room not in result
-            ]
-            result.extend(pending)
+        if is_staff:
+            # Staff precisa enxergar toda sala em andamento ou aguardando alguma
+            # ação (aprovar/aceitar) pra poder aprovar e coordenar a partida,
+            # mesmo quando não é um dos dois treinadores.
+            coordinatable_statuses = (
+                BattleStatus.PENDING_APPROVAL,
+                BattleStatus.PENDING_ACCEPT,
+                BattleStatus.ACTIVE,
+            )
+            extra = [room for room in rooms if room.status in coordinatable_statuses and room not in result]
+            result.extend(extra)
         return result
 
     def create(self, room_id: str, room: BattleRoom) -> BattleRoom:

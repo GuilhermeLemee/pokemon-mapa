@@ -39,6 +39,18 @@ def _hydrate_side(side: TrainerSide | WildSide, pokemons: PokemonRepository) -> 
     pra lados de jogador; o selvagem já guarda a vida embutida)."""
     if isinstance(side, WildSide):
         return side.model_dump()
+    if not side.pokemon_id:
+        # Sala de participante ainda aguardando aprovação: o oponente ainda
+        # não escolheu o pokémon que vai usar.
+        return {
+            "uid": side.uid,
+            "pokemon_id": "",
+            "species": "?",
+            "level": 0,
+            "current_hp": 0,
+            "max_hp": 0,
+            "moves": [],
+        }
     pokemon = pokemons.get(side.uid, side.pokemon_id)
     return {
         "uid": side.uid,
@@ -55,10 +67,11 @@ def _hydrated_room(room: BattleRoom, pokemons: PokemonRepository) -> dict:
     hydrated_a = _hydrate_side(room.side_a, pokemons)
     hydrated_b = _hydrate_side(room.side_b, pokemons)
     suggested_xp = None
-    if hydrated_a["current_hp"] <= 0:
-        suggested_xp = xp_for_victory(hydrated_a["level"])
-    elif hydrated_b["current_hp"] <= 0:
-        suggested_xp = xp_for_victory(hydrated_b["level"])
+    if room.status == BattleStatus.ACTIVE:
+        if hydrated_a["current_hp"] <= 0:
+            suggested_xp = xp_for_victory(hydrated_a["level"])
+        elif hydrated_b["current_hp"] <= 0:
+            suggested_xp = xp_for_victory(hydrated_b["level"])
     return {
         **room.model_dump(exclude={"side_a", "side_b"}),
         "side_a": hydrated_a,
@@ -143,12 +156,14 @@ def create_wild_battle(
     return battles.create(room_id, room)
 
 
-@router.get("", response_model=list[BattleRoom])
+@router.get("")
 def list_battles(
     user: CurrentUser = Depends(get_current_user),
     battles: BattleRoomRepository = Depends(get_battle_repo),
-) -> list[BattleRoom]:
-    return battles.list_for_user(user.uid, include_pending_approval=user.role in STAFF_ROLES)
+    pokemons: PokemonRepository = Depends(get_pokemon_repo),
+) -> list[dict]:
+    rooms = battles.list_for_user(user.uid, is_staff=user.role in STAFF_ROLES)
+    return [_hydrated_room(room, pokemons) for room in rooms]
 
 
 @router.delete("/finished", status_code=status.HTTP_204_NO_CONTENT)
