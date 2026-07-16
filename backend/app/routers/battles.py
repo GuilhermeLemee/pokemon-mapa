@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.auth import CurrentUser, get_current_user, require_staff
-from app.deps import get_battle_repo, get_pokemon_repo
+from app.deps import get_battle_repo, get_player_repo, get_pokemon_repo
 from app.models import (
     STAFF_ROLES,
     ApproveBattleRequest,
@@ -16,17 +16,16 @@ from app.models import (
     CreateWildBattleRequest,
     HitRequest,
     MultiAttackRequest,
+    PlayerUpdate,
     Pokemon,
     SwapRequest,
     TrainerSide,
     WildSide,
 )
-from app.repository import BattleRoomRepository, PokemonRepository
+from app.repository import BattleRoomRepository, PlayerRepository, PokemonRepository
 from app.rules.battle_engine import (
-    capture_required_wins,
     damage_for_attack,
     damage_for_multi_hit,
-    hp_percent,
     max_hp_for_level,
     xp_for_victory,
 )
@@ -48,6 +47,7 @@ def _hydrate_side(side: TrainerSide | WildSide, pokemons: PokemonRepository) -> 
         "level": pokemon.level,
         "current_hp": pokemon.current_hp,
         "max_hp": pokemon.max_hp,
+        "moves": pokemon.moves,
     }
 
 
@@ -258,17 +258,24 @@ def capture(
     _user: CurrentUser = Depends(require_staff),
     battles: BattleRoomRepository = Depends(get_battle_repo),
     pokemons: PokemonRepository = Depends(get_pokemon_repo),
+    players: PlayerRepository = Depends(get_player_repo),
 ) -> BattleActionResult:
     room = battles.get(room_id)
     if room.status != BattleStatus.ACTIVE or not isinstance(room.side_b, WildSide):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Captura só é possível contra um pokémon selvagem ativo")
 
     wild = room.side_b
-    required = capture_required_wins(hp_percent(wild.current_hp, wild.max_hp))
-    if required is None:
+    if wild.current_hp <= 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esse pokémon não pode ser capturado agora")
 
-    success = body.rounds_won >= required
+    player = players.get(room.side_a.uid)
+    available = getattr(player.pokeballs, body.ball_type)
+    if available <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Sem {body.ball_type} disponível")
+    new_pokeballs = player.pokeballs.model_copy(update={body.ball_type: available - 1})
+    players.update(room.side_a.uid, PlayerUpdate(pokeballs=new_pokeballs))
+
+    success = body.success
     if success:
         new_pokemon_id = pokemons._pokemons(room.side_a.uid).document().id
         captured = Pokemon(

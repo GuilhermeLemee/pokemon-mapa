@@ -55,6 +55,13 @@ class PartyUpdateRequest(BaseModel):
     in_party: bool
 
 
+class MoveSetRequest(BaseModel):
+    """Até 8 golpes conhecidos (o "pool" do pokémon); o conjunto de até 6 usados
+    numa batalha específica é escolhido à parte, na sala de batalha."""
+
+    moves: list[str] = Field(max_length=8)
+
+
 class ApplyXpRequest(BaseModel):
     xp_gained: int = Field(gt=0, description="Experiência ganha na batalha, definida pelo mestre")
     note: str | None = Field(default=None, max_length=280)
@@ -136,7 +143,8 @@ class MultiAttackRequest(BaseModel):
 
 
 class CaptureRequest(BaseModel):
-    rounds_won: int = Field(ge=0, le=3)
+    ball_type: str = Field(pattern="^(pokebola|superbola|ultrabola)$")
+    success: bool
 
 
 class SwapRequest(BaseModel):

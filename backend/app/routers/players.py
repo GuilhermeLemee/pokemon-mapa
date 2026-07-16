@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from app.auth import CurrentUser, ensure_self_or_staff, get_current_user, require_staff
 from app.deps import get_pokemon_repo, get_player_repo
-from app.models import ApplyXpRequest, ApplyXpResult, PartyUpdateRequest, Player, PlayerUpdate, Pokemon
+from app.models import ApplyXpRequest, ApplyXpResult, MoveSetRequest, PartyUpdateRequest, Player, PlayerUpdate, Pokemon
 from app.repository import PlayerRepository, PokemonRepository
 from app.rules.level_engine import apply_xp
 from app.rules.roster import PartyFullError, assert_can_join_party
@@ -70,6 +70,21 @@ def update_pokemon_party(
         except PartyFullError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     pokemon.in_party = body.in_party
+    pokemons.save(uid, pokemon)
+    return pokemon
+
+
+@router.post("/{uid}/pokemons/{pokemon_id}/moves", response_model=Pokemon)
+def update_pokemon_moves(
+    uid: str,
+    pokemon_id: str,
+    body: MoveSetRequest,
+    user: CurrentUser = Depends(get_current_user),
+    pokemons: PokemonRepository = Depends(get_pokemon_repo),
+) -> Pokemon:
+    ensure_self_or_staff(uid, user)
+    pokemon = pokemons.get(uid, pokemon_id)
+    pokemon.moves = body.moves
     pokemons.save(uid, pokemon)
     return pokemon
 

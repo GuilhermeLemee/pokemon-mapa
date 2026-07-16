@@ -76,7 +76,7 @@ export function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {party.map((p) => (
-              <PokemonCard key={p.id} pokemon={p}>
+              <PokemonCard key={p.id} pokemon={p} uid={player.uid} onUpdated={load}>
                 <button
                   onClick={() => moveTo(p, false)}
                   className="mt-3 text-xs text-accent-500 hover:text-accent-300"
@@ -104,7 +104,7 @@ export function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {box.map((p) => (
-              <PokemonCard key={p.id} pokemon={p}>
+              <PokemonCard key={p.id} pokemon={p} uid={player.uid} onUpdated={load}>
                 <button
                   onClick={() => moveTo(p, true)}
                   disabled={party.length >= MAX_PARTY_SIZE}

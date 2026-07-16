@@ -119,7 +119,7 @@ function ApplyXpCard({
   };
 
   return (
-    <PokemonCard pokemon={pokemon}>
+    <PokemonCard pokemon={pokemon} uid={uid} onUpdated={onApplied}>
       <div className="mt-3 space-y-2 border-t border-accent-500/15 pt-3">
         <div className="flex gap-2">
           <input

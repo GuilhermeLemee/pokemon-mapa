@@ -7,9 +7,18 @@ export interface PokemonSpecies {
 
 const LIST_URL = "https://pokeapi.co/api/v2/pokemon?limit=2000";
 const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
+const ANIMATED_SPRITE_BASE = "https://play.pokemonshowdown.com/sprites/ani";
 
 let cache: PokemonSpecies[] | null = null;
 let inflight: Promise<PokemonSpecies[]> | null = null;
+
+export interface LearnableMove {
+  name: string;
+  displayName: string;
+  level: number;
+}
+
+const learnableMovesCache = new Map<string, Promise<LearnableMove[]>>();
 
 function idFromUrl(url: string): number {
   const match = url.match(/\/pokemon\/(\d+)\//);
@@ -68,4 +77,42 @@ export function spriteUrlForName(name: string): string | null {
   const normalized = name.trim().toLowerCase();
   const match = cache.find((s) => s.name === normalized);
   return match ? match.spriteUrl : null;
+}
+
+export function animatedSpriteUrl(speciesSlug: string): string {
+  const slug = speciesSlug.trim().toLowerCase().replace(/\s+/g, "-");
+  return `${ANIMATED_SPRITE_BASE}/${slug}.gif`;
+}
+
+export async function fetchLearnableMoves(speciesSlug: string, level: number): Promise<LearnableMove[]> {
+  const slug = speciesSlug.trim().toLowerCase().replace(/\s+/g, "-");
+  if (!learnableMovesCache.has(slug)) {
+    learnableMovesCache.set(
+      slug,
+      fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`)
+        .then((res) => res.json())
+        .then((data: { moves: PokeApiMoveEntry[] }) => {
+          const byName = new Map<string, number>();
+          for (const entry of data.moves) {
+            const levelUpDetails = entry.version_group_details.filter(
+              (d) => d.move_learn_method.name === "level-up",
+            );
+            if (levelUpDetails.length === 0) continue;
+            const minLevel = Math.min(...levelUpDetails.map((d) => d.level_learned_at));
+            const existing = byName.get(entry.move.name);
+            if (existing === undefined || minLevel < existing) byName.set(entry.move.name, minLevel);
+          }
+          return Array.from(byName.entries())
+            .map(([name, moveLevel]) => ({ name, displayName: capitalize(name), level: moveLevel }))
+            .sort((a, b) => a.level - b.level);
+        }),
+    );
+  }
+  const all = await learnableMovesCache.get(slug)!;
+  return all.filter((m) => m.level <= level && m.level > 0);
+}
+
+interface PokeApiMoveEntry {
+  move: { name: string };
+  version_group_details: { level_learned_at: number; move_learn_method: { name: string } }[];
 }

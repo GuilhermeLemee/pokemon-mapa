@@ -46,6 +46,7 @@ export interface TrainerSideHydrated {
   level: number;
   current_hp: number;
   max_hp: number;
+  moves: string[];
 }
 
 export interface WildSideHydrated {

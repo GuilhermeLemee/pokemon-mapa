@@ -1,30 +1,28 @@
-import { useEffect, useState } from "react";
-import { spriteUrlForName, searchSpecies } from "../lib/pokeapi";
+import { animatedSpriteUrl } from "../lib/pokeapi";
 import type { Pokemon } from "../lib/types";
 import { GLASS_CARD } from "../lib/ui";
+import { MoveEditor } from "./MoveEditor";
 
-export function PokemonCard({ pokemon, children }: { pokemon: Pokemon; children?: React.ReactNode }) {
+export function PokemonCard({
+  pokemon,
+  uid,
+  onUpdated,
+  children,
+}: {
+  pokemon: Pokemon;
+  uid?: string;
+  onUpdated?: () => void;
+  children?: React.ReactNode;
+}) {
   const hpPercent = Math.round((pokemon.current_hp / pokemon.max_hp) * 100);
   const xpPercent = Math.round((pokemon.current_xp / pokemon.xp_to_next_level) * 100);
-  const [sprite, setSprite] = useState<string | null>(() => spriteUrlForName(pokemon.species));
-
-  useEffect(() => {
-    if (sprite) return;
-    let cancelled = false;
-    searchSpecies(pokemon.species, 1).then((matches) => {
-      if (!cancelled && matches[0]) setSprite(matches[0].spriteUrl);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pokemon.species]);
+  const sprite = animatedSpriteUrl(pokemon.species);
 
   return (
     <div className={`${GLASS_CARD} p-4`}>
       <div className="flex items-baseline justify-between gap-2">
         <div className="flex items-center gap-2">
-          {sprite && <img src={sprite} alt="" className="h-10 w-10" loading="lazy" />}
+          <img src={sprite} alt="" className="h-12 w-12 object-contain" loading="lazy" />
           <h3 className="font-semibold text-accent-200">{pokemon.nickname}</h3>
         </div>
         <span className="text-xs text-accent-500">{pokemon.species}</span>
@@ -55,18 +53,7 @@ export function PokemonCard({ pokemon, children }: { pokemon: Pokemon; children?
         </div>
       </div>
 
-      {pokemon.moves.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1">
-          {pokemon.moves.map((move) => (
-            <span
-              key={move}
-              className="rounded-full bg-bg-900 px-2 py-0.5 text-xs text-accent-300 border border-accent-500/15"
-            >
-              {move}
-            </span>
-          ))}
-        </div>
-      )}
+      {uid && <MoveEditor uid={uid} pokemon={pokemon} onUpdated={onUpdated ?? (() => {})} />}
 
       {children}
     </div>
