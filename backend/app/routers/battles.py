@@ -151,6 +151,15 @@ def list_battles(
     return battles.list_for_user(user.uid, include_pending_approval=user.role in STAFF_ROLES)
 
 
+@router.delete("/finished", status_code=status.HTTP_204_NO_CONTENT)
+def clear_finished_battles(
+    user: CurrentUser = Depends(get_current_user),
+    battles: BattleRoomRepository = Depends(get_battle_repo),
+) -> None:
+    for room in battles.list_finished_for_user(user.uid):
+        battles.delete(room.id)
+
+
 @router.get("/{room_id}")
 def get_battle(
     room_id: str,
@@ -298,7 +307,7 @@ def capture(
 def swap(
     room_id: str,
     body: SwapRequest,
-    _user: CurrentUser = Depends(require_staff),
+    user: CurrentUser = Depends(get_current_user),
     battles: BattleRoomRepository = Depends(get_battle_repo),
     pokemons: PokemonRepository = Depends(get_pokemon_repo),
 ) -> BattleRoom:
@@ -309,6 +318,8 @@ def swap(
     side_key, side = _side_key(room, body.side)
     if not isinstance(side, TrainerSide):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Só é possível trocar o pokémon de um treinador")
+    if user.uid != side.uid and user.role not in STAFF_ROLES:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Só o dono do pokémon (ou o mestre) pode trocar")
 
     current_pokemon = pokemons.get(side.uid, side.pokemon_id)
     if current_pokemon.current_hp > 0:

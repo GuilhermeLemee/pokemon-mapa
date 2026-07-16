@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { HealCenterPanel } from "../components/HealCenterPanel";
 import { ImageButton } from "../components/ImageButton";
 import { PokemonSpeciesAutocomplete } from "../components/PokemonSpeciesAutocomplete";
 import { useAuth } from "../context/AuthContext";
@@ -44,8 +45,19 @@ export function BattlesPage() {
   const active = rooms.filter((r) => r.status === "active");
   const finished = rooms.filter((r) => r.status === "finished" || r.status === "declined");
 
+  const clearHistory = async () => {
+    try {
+      await api.delete("/battles/finished");
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao limpar histórico.");
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <HealCenterPanel />
+
       <section className="flex flex-wrap gap-3">
         <ChallengeForm onCreated={load} />
         {isStaff && <WildEncounterForm onCreated={load} />}
@@ -59,17 +71,39 @@ export function BattlesPage() {
         <>
           <RoomSection title="Pendentes" rooms={pending} emptyText="Nada pendente." />
           <RoomSection title="Em andamento" rooms={active} emptyText="Nenhuma batalha ativa." />
-          <RoomSection title="Encerradas" rooms={finished} emptyText="Nenhuma batalha encerrada ainda." />
+          <RoomSection
+            title="Encerradas"
+            rooms={finished}
+            emptyText="Nenhuma batalha encerrada ainda."
+            onClear={finished.length > 0 ? clearHistory : undefined}
+          />
         </>
       )}
     </div>
   );
 }
 
-function RoomSection({ title, rooms, emptyText }: { title: string; rooms: BattleRoom[]; emptyText: string }) {
+function RoomSection({
+  title,
+  rooms,
+  emptyText,
+  onClear,
+}: {
+  title: string;
+  rooms: BattleRoom[];
+  emptyText: string;
+  onClear?: () => void;
+}) {
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-accent-200">{title}</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-accent-200">{title}</h2>
+        {onClear && (
+          <button onClick={onClear} className="text-xs text-accent-500 hover:text-accent-300">
+            Limpar histórico
+          </button>
+        )}
+      </div>
       {rooms.length === 0 ? (
         <p className="text-sm text-accent-500">{emptyText}</p>
       ) : (

@@ -4,13 +4,14 @@ import { Layout } from "./components/Layout";
 import { RequireStaff } from "./components/RequireStaff";
 import { StarfieldBackground } from "./components/StarfieldBackground";
 import { LoginPage } from "./pages/LoginPage";
+import { StarterSelectionPage } from "./pages/StarterSelectionPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AdminPage } from "./pages/AdminPage";
 import { BattlesPage } from "./pages/BattlesPage";
 import { BattleRoomPage } from "./pages/BattleRoomPage";
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user, player, loading } = useAuth();
 
   if (loading) {
     return (
@@ -27,6 +28,10 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
+  }
+
+  if (player && !player.starter_chosen) {
+    return <StarterSelectionPage />;
   }
 
   return (

@@ -15,6 +15,7 @@ export interface Player {
   coins: number;
   pokeballs: Pokeballs;
   badges: string[];
+  starter_chosen: boolean;
 }
 
 export interface Pokemon {
@@ -73,4 +74,12 @@ export interface BattleActionResult {
   capture_success?: boolean | null;
   xp_granted?: number | null;
   leveled_up?: boolean | null;
+}
+
+export type HealRequestStatus = "pending" | "approved" | "declined";
+
+export interface HealRequest {
+  id: string;
+  uid: string;
+  status: HealRequestStatus;
 }

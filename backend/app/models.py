@@ -26,6 +26,7 @@ class Player(BaseModel):
     coins: int = 0
     pokeballs: Pokeballs = Field(default_factory=Pokeballs)
     badges: list[str] = Field(default_factory=list)
+    starter_chosen: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -35,6 +36,7 @@ class PlayerUpdate(BaseModel):
     coins: int | None = None
     pokeballs: Pokeballs | None = None
     badges: list[str] | None = None
+    starter_chosen: bool | None = None
 
 
 class Pokemon(BaseModel):
@@ -53,6 +55,10 @@ class Pokemon(BaseModel):
 
 class PartyUpdateRequest(BaseModel):
     in_party: bool
+
+
+class ChooseStarterRequest(BaseModel):
+    species: str
 
 
 class MoveSetRequest(BaseModel):
@@ -158,3 +164,17 @@ class BattleActionResult(BaseModel):
     capture_success: bool | None = None
     xp_granted: int | None = None
     leveled_up: bool | None = None
+
+
+class HealRequestStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    DECLINED = "declined"
+
+
+class HealRequest(BaseModel):
+    id: str
+    uid: str
+    status: HealRequestStatus
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

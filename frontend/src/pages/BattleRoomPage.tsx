@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../lib/api";
@@ -244,15 +245,18 @@ function SideCard({
   onError: (msg: string) => void;
   reload: () => void;
 }) {
+  const { player } = useAuth();
   const data = side === "a" ? room.side_a : room.side_b;
   const opponentData = side === "a" ? room.side_b : room.side_a;
   const { title, subtitle } = sideDisplay(data);
   const hpPercent = Math.round((data.current_hp / data.max_hp) * 100);
   const isTrainer = !("is_wild" in data);
+  const isOwner = isTrainer && "uid" in data && data.uid === player?.uid;
   const pool = useSideMoves(data);
   const [activeMoves, setActiveMoves] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [hasActed, setHasActed] = useState(false);
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const pickerTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [pendingMultiMove, setPendingMultiMove] = useState<string | null>(null);
   const [hitCount, setHitCount] = useState("1");
   const [validated, setValidated] = useState(true);
@@ -286,6 +290,30 @@ function SideCard({
     });
   };
 
+  const togglePicker = () => {
+    if (pickerOpen) {
+      setPickerOpen(false);
+      setPickerPos(null);
+      return;
+    }
+    const trigger = pickerTriggerRef.current;
+    if (trigger) {
+      const rect = trigger.getBoundingClientRect();
+      setPickerPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX });
+    }
+    setPickerOpen(true);
+  };
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const closeOnOutsideClick = () => {
+      setPickerOpen(false);
+      setPickerPos(null);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [pickerOpen]);
+
   const targetSide = side === "a" ? "b" : "a";
   const targetTitle = sideDisplay(opponentData).title;
 
@@ -306,7 +334,6 @@ function SideCard({
         target: targetSide,
         advantage,
       });
-      setHasActed(true);
       onLog(
         `${moveDisplayName(move)}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}${
           advantage ? " (super efetivo!)" : ""
@@ -329,7 +356,6 @@ function SideCard({
         validated,
         hit_count: Number(hitCount),
       });
-      setHasActed(true);
       onLog(
         validated
           ? `${moveDisplayName(move)}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}.`
@@ -373,30 +399,41 @@ function SideCard({
 
       {isStaff && room.status === "active" && data.current_hp > 0 && (
         <div className="mt-3">
-          {!hasActed && pool.length > MAX_BATTLE_MOVES && (
+          {pool.length > MAX_BATTLE_MOVES && (
             <button
-              onClick={() => setPickerOpen((v) => !v)}
+              ref={pickerTriggerRef}
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePicker();
+              }}
               className="mb-2 w-full text-xs text-accent-500 hover:text-accent-300"
             >
               Ataques desta batalha ({activeMoves.length}/{MAX_BATTLE_MOVES}) — {pickerOpen ? "fechar" : "escolher"}
             </button>
           )}
 
-          {!hasActed && pickerOpen && (
-            <div className="mb-2 grid grid-cols-2 gap-1 text-left">
-              {pool.map((move) => (
-                <label key={move} className="flex items-center gap-1 text-xs text-accent-300">
-                  <input
-                    type="checkbox"
-                    checked={activeMoves.includes(move)}
-                    onChange={() => toggleActiveMove(move)}
-                    disabled={!activeMoves.includes(move) && activeMoves.length >= MAX_BATTLE_MOVES}
-                  />
-                  {moveDisplayName(move)}
-                </label>
-              ))}
-            </div>
-          )}
+          {pickerOpen &&
+            pickerPos &&
+            createPortal(
+              <div
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{ top: pickerPos.top, left: pickerPos.left }}
+                className="fixed z-50 grid max-h-64 w-56 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-accent-500/25 bg-bg-900/95 p-2 text-left backdrop-blur-sm"
+              >
+                {pool.map((move) => (
+                  <label key={move} className="flex items-center gap-1 text-xs text-accent-300">
+                    <input
+                      type="checkbox"
+                      checked={activeMoves.includes(move)}
+                      onChange={() => toggleActiveMove(move)}
+                      disabled={!activeMoves.includes(move) && activeMoves.length >= MAX_BATTLE_MOVES}
+                    />
+                    {moveDisplayName(move)}
+                  </label>
+                ))}
+              </div>,
+              document.body,
+            )}
 
           {activeMoves.length === 0 ? (
             <p className="text-xs text-accent-500">Sem ataques definidos.</p>
@@ -444,7 +481,7 @@ function SideCard({
         </div>
       )}
 
-      {isStaff && room.status === "active" && data.current_hp <= 0 && isTrainer && "uid" in data && (
+      {(isStaff || isOwner) && room.status === "active" && data.current_hp <= 0 && isTrainer && "uid" in data && (
         <SwapPanel room={room} side={side} uid={data.uid} onDone={reload} onError={onError} />
       )}
     </div>

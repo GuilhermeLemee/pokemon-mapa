@@ -3,7 +3,18 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from google.cloud.firestore import Client
 
-from app.models import BattleRoom, BattleStatus, Player, PlayerUpdate, Pokemon, Role, TrainerSide, WildSide
+from app.models import (
+    BattleRoom,
+    BattleStatus,
+    HealRequest,
+    HealRequestStatus,
+    Player,
+    PlayerUpdate,
+    Pokemon,
+    Role,
+    TrainerSide,
+    WildSide,
+)
 
 
 class PlayerRepository:
@@ -154,3 +165,60 @@ class BattleRoomRepository:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Sala de batalha não encontrada")
         doc_ref.update(updates)
         return self.get(room_id)
+
+    def delete(self, room_id: str) -> None:
+        self._rooms().document(room_id).delete()
+
+    def list_finished_for_user(self, uid: str) -> list[BattleRoom]:
+        rooms = [self._to_model(doc) for doc in self._rooms().stream()]
+        return [
+            room
+            for room in rooms
+            if room.status in (BattleStatus.FINISHED, BattleStatus.DECLINED)
+            and (room.side_a.uid == uid or (isinstance(room.side_b, TrainerSide) and room.side_b.uid == uid))
+        ]
+
+
+class HealRequestRepository:
+    def __init__(self, db: Client):
+        self._db = db
+
+    def _requests(self):
+        return self._db.collection("healRequests")
+
+    def _to_model(self, doc) -> HealRequest:
+        data = doc.to_dict()
+        return HealRequest(
+            id=doc.id,
+            uid=data["uid"],
+            status=data["status"],
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+        )
+
+    def get(self, request_id: str) -> HealRequest:
+        doc = self._requests().document(request_id).get()
+        if not doc.exists:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Pedido de cura não encontrado")
+        return self._to_model(doc)
+
+    def list_for_user(self, uid: str, include_all_pending: bool) -> list[HealRequest]:
+        requests = [self._to_model(doc) for doc in self._requests().stream()]
+        result = [r for r in requests if r.uid == uid]
+        if include_all_pending:
+            pending = [r for r in requests if r.status == HealRequestStatus.PENDING and r not in result]
+            result.extend(pending)
+        return result
+
+    def create(self, uid: str) -> HealRequest:
+        now = datetime.now(UTC)
+        doc_ref = self._requests().document()
+        doc_ref.set({"uid": uid, "status": HealRequestStatus.PENDING.value, "created_at": now, "updated_at": now})
+        return self.get(doc_ref.id)
+
+    def update(self, request_id: str, status_value: HealRequestStatus) -> HealRequest:
+        doc_ref = self._requests().document(request_id)
+        if not doc_ref.get().exists:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Pedido de cura não encontrado")
+        doc_ref.update({"status": status_value.value, "updated_at": datetime.now(UTC)})
+        return self.get(request_id)

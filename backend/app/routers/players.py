@@ -4,10 +4,21 @@ from fastapi import HTTPException
 
 from app.auth import CurrentUser, ensure_self_or_staff, get_current_user, require_staff
 from app.deps import get_pokemon_repo, get_player_repo
-from app.models import ApplyXpRequest, ApplyXpResult, MoveSetRequest, PartyUpdateRequest, Player, PlayerUpdate, Pokemon
+from app.models import (
+    ApplyXpRequest,
+    ApplyXpResult,
+    ChooseStarterRequest,
+    MoveSetRequest,
+    PartyUpdateRequest,
+    Player,
+    PlayerUpdate,
+    Pokemon,
+)
 from app.repository import PlayerRepository, PokemonRepository
-from app.rules.level_engine import apply_xp
+from app.rules.battle_engine import max_hp_for_level
+from app.rules.level_engine import apply_xp, xp_to_next_level_for
 from app.rules.roster import PartyFullError, assert_can_join_party
+from app.rules.starters import InvalidStarterError, assert_valid_starter
 
 router = APIRouter(prefix="/players", tags=["players"])
 
@@ -51,6 +62,44 @@ def list_pokemons(
 ) -> list[Pokemon]:
     ensure_self_or_staff(uid, user)
     return pokemons.list_for_player(uid)
+
+
+STARTER_LEVEL = 5
+
+
+@router.post("/{uid}/starter", response_model=Pokemon)
+def choose_starter(
+    uid: str,
+    body: ChooseStarterRequest,
+    user: CurrentUser = Depends(get_current_user),
+    players: PlayerRepository = Depends(get_player_repo),
+    pokemons: PokemonRepository = Depends(get_pokemon_repo),
+) -> Pokemon:
+    ensure_self_or_staff(uid, user)
+    player = players.get(uid)
+    if player.starter_chosen:
+        raise HTTPException(status_code=400, detail="Você já escolheu seu pokémon inicial.")
+    try:
+        assert_valid_starter(body.species)
+    except InvalidStarterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    max_hp = max_hp_for_level(STARTER_LEVEL)
+    new_pokemon_id = pokemons._pokemons(uid).document().id
+    starter = Pokemon(
+        id=new_pokemon_id,
+        nickname=body.species,
+        species=body.species,
+        level=STARTER_LEVEL,
+        current_xp=0,
+        xp_to_next_level=xp_to_next_level_for(STARTER_LEVEL),
+        current_hp=max_hp,
+        max_hp=max_hp,
+        in_party=True,
+    )
+    pokemons.save(uid, starter)
+    players.update(uid, PlayerUpdate(starter_chosen=True))
+    return starter
 
 
 @router.post("/{uid}/pokemons/{pokemon_id}/party", response_model=Pokemon)
