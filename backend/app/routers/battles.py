@@ -29,7 +29,7 @@ from app.rules.battle_engine import (
     max_hp_for_level,
     xp_for_victory,
 )
-from app.rules.level_engine import xp_to_next_level_for
+from app.rules.level_engine import apply_xp, xp_to_next_level_for
 
 router = APIRouter(prefix="/battles", tags=["battles"])
 
@@ -321,13 +321,33 @@ def swap(
     return battles.update(room_id, {side_key: {"uid": side.uid, "pokemon_id": body.pokemon_id}})
 
 
-@router.post("/{room_id}/finish", response_model=BattleRoom)
+def _grant_victory_xp(
+    winner: TrainerSide, defeated_level: int, pokemons: PokemonRepository, applied_by: str
+) -> tuple[int, bool]:
+    pokemon = pokemons.get(winner.uid, winner.pokemon_id)
+    xp = xp_for_victory(defeated_level)
+    result = apply_xp(pokemon, xp)
+    pokemons.save(winner.uid, result.pokemon)
+    pokemons.log_xp_gain(winner.uid, winner.pokemon_id, xp, applied_by=applied_by, note="Vitória em batalha")
+    return xp, result.leveled_up
+
+
+@router.post("/{room_id}/finish", response_model=BattleActionResult)
 def finish(
     room_id: str,
-    _user: CurrentUser = Depends(require_staff),
+    user: CurrentUser = Depends(require_staff),
     battles: BattleRoomRepository = Depends(get_battle_repo),
-) -> BattleRoom:
-    return battles.update(
-        room_id,
-        {"status": BattleStatus.FINISHED.value, "finished_at": datetime.now(UTC)},
-    )
+    pokemons: PokemonRepository = Depends(get_pokemon_repo),
+) -> BattleActionResult:
+    room = battles.get(room_id)
+    hydrated = _hydrated_room(room, pokemons)
+    xp_granted: int | None = None
+    leveled_up: bool | None = None
+
+    if hydrated["side_a"]["current_hp"] <= 0 and isinstance(room.side_b, TrainerSide):
+        xp_granted, leveled_up = _grant_victory_xp(room.side_b, hydrated["side_a"]["level"], pokemons, user.uid)
+    elif hydrated["side_b"]["current_hp"] <= 0 and isinstance(room.side_a, TrainerSide):
+        xp_granted, leveled_up = _grant_victory_xp(room.side_a, hydrated["side_b"]["level"], pokemons, user.uid)
+
+    battles.update(room_id, {"status": BattleStatus.FINISHED.value, "finished_at": datetime.now(UTC)})
+    return BattleActionResult(room=battles.get(room_id), xp_granted=xp_granted, leveled_up=leveled_up)

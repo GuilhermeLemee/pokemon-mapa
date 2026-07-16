@@ -71,4 +71,6 @@ export interface BattleActionResult {
   room: BattleRoom;
   damage_dealt?: number | null;
   capture_success?: boolean | null;
+  xp_granted?: number | null;
+  leveled_up?: boolean | null;
 }

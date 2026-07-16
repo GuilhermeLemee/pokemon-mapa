@@ -60,6 +60,18 @@ export function BattleRoomPage() {
     }
   };
 
+  const finishBattle = async () => {
+    try {
+      const result = await api.post<BattleActionResult>(`/battles/${room.id}/finish`, {});
+      if (result.xp_granted) {
+        pushLog(`Vitória! +${result.xp_granted} XP${result.leveled_up ? " — subiu de nível!" : ""}`);
+      }
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao finalizar batalha.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {room.status === "pending_accept" && player?.uid === room.side_a.uid && (
@@ -100,10 +112,7 @@ export function BattleRoomPage() {
             {isStaff && room.status === "active" && room.suggested_xp && (
               <div className="mt-4 flex items-center justify-between border-t border-accent-500/15 pt-4">
                 <p className="text-sm text-accent-300">XP sugerido para o vencedor: {room.suggested_xp}</p>
-                <button
-                  className="text-sm text-accent-300 hover:text-accent-200 hover:underline"
-                  onClick={() => handleAction(() => api.post(`/battles/${room.id}/finish`, {}))}
-                >
+                <button className="text-sm text-accent-300 hover:text-accent-200 hover:underline" onClick={finishBattle}>
                   Finalizar batalha
                 </button>
               </div>

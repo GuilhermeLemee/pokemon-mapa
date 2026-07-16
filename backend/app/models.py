@@ -156,3 +156,5 @@ class BattleActionResult(BaseModel):
     room: BattleRoom
     damage_dealt: int | None = None
     capture_success: bool | None = None
+    xp_granted: int | None = None
+    leveled_up: bool | None = None
