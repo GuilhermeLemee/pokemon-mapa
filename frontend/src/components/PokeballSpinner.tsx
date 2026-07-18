@@ -1,10 +1,10 @@
-export function PokeballSpinner({ size = 22 }: { size?: number }) {
+export function PokeballSpinner({ size = 22, spin = true }: { size?: number; spin?: boolean }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 40 40"
-      className="animate-spin-slow"
+      className={spin ? "animate-spin-slow" : undefined}
       aria-hidden="true"
     >
       <circle cx="20" cy="20" r="18" fill="#f5f5f5" stroke="#1f2937" strokeWidth="2" />
