@@ -5,7 +5,10 @@ import { RequireStaff } from "./components/RequireStaff";
 import { StarfieldBackground } from "./components/StarfieldBackground";
 import { LoginPage } from "./pages/LoginPage";
 import { StarterSelectionPage } from "./pages/StarterSelectionPage";
-import { DashboardPage } from "./pages/DashboardPage";
+import { TreinadorPage } from "./pages/TreinadorPage";
+import { PartyPage } from "./pages/PartyPage";
+import { PokedexPage } from "./pages/PokedexPage";
+import { PokeMartPage } from "./pages/PokeMartPage";
 import { AdminPage } from "./pages/AdminPage";
 import { BattlesPage } from "./pages/BattlesPage";
 import { BattleRoomPage } from "./pages/BattleRoomPage";
@@ -37,7 +40,10 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/" element={<TreinadorPage />} />
+        <Route path="/party" element={<PartyPage />} />
+        <Route path="/pokedex" element={<PokedexPage />} />
+        <Route path="/pokemart" element={<PokeMartPage />} />
         <Route path="/battles" element={<BattlesPage />} />
         <Route path="/battles/:id" element={<BattleRoomPage />} />
         <Route

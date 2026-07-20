@@ -16,6 +16,7 @@ export interface Player {
   pokeballs: Pokeballs;
   badges: string[];
   starter_chosen: boolean;
+  avatar_data_url: string | null;
 }
 
 export interface Pokemon {
@@ -29,6 +30,7 @@ export interface Pokemon {
   max_hp: number;
   moves: string[];
   in_party: boolean;
+  caught_at: string | null;
 }
 
 export interface ApplyXpResult {

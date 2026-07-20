@@ -27,6 +27,7 @@ class Player(BaseModel):
     pokeballs: Pokeballs = Field(default_factory=Pokeballs)
     badges: list[str] = Field(default_factory=list)
     starter_chosen: bool = False
+    avatar_data_url: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -37,6 +38,11 @@ class PlayerUpdate(BaseModel):
     pokeballs: Pokeballs | None = None
     badges: list[str] | None = None
     starter_chosen: bool | None = None
+    avatar_data_url: str | None = None
+
+
+class AvatarUploadRequest(BaseModel):
+    data_url: str = Field(max_length=400_000)
 
 
 class Pokemon(BaseModel):

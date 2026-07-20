@@ -7,6 +7,7 @@ from app.deps import get_pokemon_repo, get_player_repo
 from app.models import (
     ApplyXpRequest,
     ApplyXpResult,
+    AvatarUploadRequest,
     ChooseStarterRequest,
     MoveSetRequest,
     PartyUpdateRequest,
@@ -52,6 +53,17 @@ def update_player(
     players: PlayerRepository = Depends(get_player_repo),
 ) -> Player:
     return players.update(uid, patch)
+
+
+@router.post("/{uid}/avatar", response_model=Player)
+def update_avatar(
+    uid: str,
+    body: AvatarUploadRequest,
+    user: CurrentUser = Depends(get_current_user),
+    players: PlayerRepository = Depends(get_player_repo),
+) -> Player:
+    ensure_self_or_staff(uid, user)
+    return players.update(uid, PlayerUpdate(avatar_data_url=body.data_url))
 
 
 @router.get("/{uid}/pokemons", response_model=list[Pokemon])
