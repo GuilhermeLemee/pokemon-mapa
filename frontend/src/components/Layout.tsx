@@ -117,14 +117,19 @@ export function Layout() {
 
         <button
           onClick={() => logout()}
-          className="mt-1 flex shrink-0 flex-col items-center gap-1 rounded-2xl bg-gradient-to-b from-[#e5153a] to-[#c00822] px-3 py-2 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_4px_10px_rgba(0,0,0,0.35)] sm:mt-auto"
+          className="group mt-1 flex shrink-0 flex-col items-center gap-1 px-1 sm:mt-auto"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M16 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="text-[10px] font-bold tracking-wide">SAIR</span>
+          <span
+            className="flex h-12 w-12 items-center justify-center rounded-full text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_4px_12px_rgba(0,0,0,0.35)] transition group-hover:brightness-110"
+            style={{ background: "linear-gradient(180deg,#e5153a,#c00822)" }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="text-[11px] font-medium text-red-300">Sair</span>
         </button>
       </nav>
       <main className="mx-auto w-full max-w-4xl flex-1 pb-6">

@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../lib/api";
 import { isMultiHitMove } from "../lib/multiHitMoves";
-import { animatedSpriteUrl, fetchLearnableMoves, fetchMoveType, fetchPokemonTypes } from "../lib/pokeapi";
+import { animatedSpriteUrl, fetchDexNumber, fetchLearnableMoves, fetchMoveType, fetchPokemonTypes } from "../lib/pokeapi";
 import { isSuperEffective, typeColor } from "../lib/typeChart";
+import { TypeIcon } from "../lib/typeIcons";
 import { STAFF_ROLES, type BattleActionResult, type BattleRoom, type Player, type Pokemon } from "../lib/types";
-import { ACCENT_BUTTON, FIELD_INPUT, GLASS_CARD } from "../lib/ui";
 
 const POLL_INTERVAL_MS = 5000;
 const MAX_LOG_ENTRIES = 7;
@@ -17,6 +17,13 @@ const BALL_LABELS: Record<string, string> = {
   superbola: "Superbola",
   ultrabola: "Ultrabola",
 };
+
+function moveDisplayName(slug: string): string {
+  return slug
+    .split("-")
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ");
+}
 
 export function BattleRoomPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,10 +54,11 @@ export function BattleRoomPage() {
     return () => clearInterval(interval);
   }, [load, room?.status]);
 
-  if (error) return <p className="text-red-400">{error}</p>;
-  if (!room) return <p className="text-accent-500">Carregando...</p>;
+  if (error) return <p className="rounded-xl bg-white/90 p-4 text-sm font-medium text-red-500 shadow">{error}</p>;
+  if (!room) return <p className="text-sm text-neutral-500">Carregando...</p>;
 
   const isWild = "is_wild" in room.side_b;
+  const inBattle = room.status === "active" || room.status === "finished";
 
   const handleAction = async (action: () => Promise<void>) => {
     try {
@@ -61,32 +69,21 @@ export function BattleRoomPage() {
     }
   };
 
-  const finishBattle = async () => {
-    try {
-      const result = await api.post<BattleActionResult>(`/battles/${room.id}/finish`, {});
-      if (result.xp_granted) {
-        pushLog(`Vitória! +${result.xp_granted} XP${result.leveled_up ? " — subiu de nível!" : ""}`);
-      }
-      load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao finalizar batalha.");
-    }
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {room.status === "pending_accept" && player?.uid === room.side_a.uid && (
-        <div className={`${GLASS_CARD} flex items-center justify-between p-4`}>
-          <p className="text-sm text-accent-200">O mestre te convidou para essa batalha.</p>
+        <div className="flex items-center justify-between rounded-2xl border border-black/5 bg-white/90 p-4 shadow-lg">
+          <p className="text-sm font-medium text-neutral-700">O mestre te convidou para essa batalha.</p>
           <div className="flex gap-2">
             <button
-              className={ACCENT_BUTTON}
+              className="rounded-full px-4 py-2 text-sm font-bold text-white"
+              style={{ background: "linear-gradient(180deg,#e5153a,#c00822)" }}
               onClick={() => handleAction(() => api.post(`/battles/${room.id}/accept`, {}))}
             >
               Aceitar
             </button>
             <button
-              className="rounded-lg border border-red-400/40 px-3 py-2 text-sm text-red-400"
+              className="rounded-full border-2 border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-600"
               onClick={() => handleAction(() => api.post(`/battles/${room.id}/decline`, {}))}
             >
               Recusar
@@ -95,114 +92,516 @@ export function BattleRoomPage() {
         </div>
       )}
 
-      {room.status === "pending_approval" && isStaff && (
-        <ApprovalPanel room={room} onDone={load} />
+      {room.status === "pending_approval" && isStaff && <ApprovalPanel room={room} onDone={load} />}
+
+      {inBattle && (
+        <BattleCards room={room} isWild={isWild} isStaff={!!isStaff} onLog={pushLog} onError={setError} reload={load} />
       )}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <PartySidebar uid={room.side_a.uid} activePokemonId={room.side_a.pokemon_id} />
+      {inBattle && <BattleLog entries={log} />}
+    </div>
+  );
+}
 
-        <div className="flex-1 space-y-4">
-          <div className={`${GLASS_CARD} p-5`}>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr_220px]">
-              <SideCard room={room} side="a" isStaff={!!isStaff} onLog={pushLog} onError={setError} reload={load} />
-              <SideCard room={room} side="b" isStaff={!!isStaff} onLog={pushLog} onError={setError} reload={load} />
-              <BattleLog entries={log} />
+/* ======================= LAYOUT DE CARDS (ESTILO POKÉDEX) ======================= */
+
+function BattleCards({
+  room,
+  isWild,
+  isStaff,
+  onLog,
+  onError,
+  reload,
+}: {
+  room: BattleRoom;
+  isWild: boolean;
+  isStaff: boolean;
+  onLog: (msg: string) => void;
+  onError: (msg: string) => void;
+  reload: () => void;
+}) {
+  const { player } = useAuth();
+  const a = useSideController({ room, side: "a", onLog, onError, reload });
+  const b = useSideController({ room, side: "b", onLog, onError, reload });
+
+  const viewerIsB = "uid" in room.side_b && room.side_b.uid === player?.uid;
+  const playerCtrl = viewerIsB ? b : a;
+  const oppCtrl = viewerIsB ? a : b;
+
+  const finishBattle = async () => {
+    try {
+      const result = await api.post<BattleActionResult>(`/battles/${room.id}/finish`, {});
+      if (result.xp_granted) {
+        onLog(`Vitória! +${result.xp_granted} XP${result.leveled_up ? " — subiu de nível!" : ""}`);
+      }
+      reload();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Erro ao finalizar batalha.");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 md:grid-cols-2">
+        <PokemonBattleCard ctrl={playerCtrl} room={room} isStaff={isStaff} reload={reload} onError={onError} onLog={onLog} isPlayerSide />
+        <PokemonBattleCard ctrl={oppCtrl} room={room} isStaff={isStaff} reload={reload} onError={onError} onLog={onLog} isPlayerSide={false} />
+      </div>
+
+      {isStaff && room.status === "active" && (
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-black/5 bg-white/90 p-4 shadow">
+          {isWild && <CapturePanel room={room} onDone={reload} onLog={onLog} onError={onError} />}
+          {room.suggested_xp && (
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-neutral-500">
+                XP sugerido: <span className="font-bold text-neutral-800">{room.suggested_xp}</span>
+              </p>
+              <button
+                onClick={finishBattle}
+                className="rounded-full px-4 py-2 text-sm font-bold text-white"
+                style={{ background: "linear-gradient(180deg,#e5153a,#c00822)" }}
+              >
+                Finalizar batalha
+              </button>
             </div>
+          )}
+        </div>
+      )}
 
-            {isStaff && room.status === "active" && room.suggested_xp && (
-              <div className="mt-4 flex items-center justify-between border-t border-accent-500/15 pt-4">
-                <p className="text-sm text-accent-300">XP sugerido para o vencedor: {room.suggested_xp}</p>
-                <button className="text-sm text-accent-300 hover:text-accent-200 hover:underline" onClick={finishBattle}>
-                  Finalizar batalha
-                </button>
-              </div>
-            )}
+      {room.status === "finished" && (
+        <div className="rounded-2xl border border-black/5 bg-white/90 p-4 text-center text-sm font-semibold text-neutral-600 shadow">
+          Batalha encerrada.
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TABS: [string, string][] = [
+  ["moves", "Moves"],
+  ["about", "About"],
+  ["stats", "Base Stats"],
+  ["evo", "Evolution"],
+];
+
+function PokemonBattleCard({
+  ctrl,
+  room,
+  isStaff,
+  reload,
+  onError,
+  onLog,
+  isPlayerSide,
+}: {
+  ctrl: SideController;
+  room: BattleRoom;
+  isStaff: boolean;
+  reload: () => void;
+  onError: (msg: string) => void;
+  onLog: (msg: string) => void;
+  isPlayerSide: boolean;
+}) {
+  const data = ctrl.data;
+  const [types, setTypes] = useState<string[]>([]);
+  const [dex, setDex] = useState<number | null>(null);
+  const [tab, setTab] = useState<string>("moves");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPokemonTypes(data.species).then((t) => !cancelled && setTypes(t));
+    fetchDexNumber(data.species).then((n) => !cancelled && setDex(n));
+    return () => {
+      cancelled = true;
+    };
+  }, [data.species]);
+
+  const headerColor = typeColor(types[0]) ?? "#6b7280";
+  const name = moveDisplayName(data.species);
+  const fainted = data.current_hp <= 0;
+
+  return (
+    <div className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-black/5">
+      {/* header colorido pelo tipo */}
+      <div className="relative overflow-hidden px-4 py-3" style={{ background: headerColor }}>
+        <PokeballWatermark />
+        <div className="relative flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <h2 className="truncate text-lg font-black text-white" style={{ textShadow: "0 1px 2px rgba(0,0,0,.28)" }}>
+                {name}
+              </h2>
+              {dex != null && <span className="text-xs font-bold text-white/75">#{String(dex).padStart(3, "0")}</span>}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {types.map((t) => (
+                <TypeBadge key={t} type={t} />
+              ))}
+            </div>
+            <div className="mt-2">
+              <HpBar percent={ctrl.hpPercent} current={data.current_hp} max={data.max_hp} showExact={isPlayerSide} level={data.level} />
+            </div>
           </div>
+          <img
+            src={animatedSpriteUrl(data.species)}
+            alt={name}
+            className="h-20 w-20 shrink-0 object-contain"
+            loading="lazy"
+            style={{
+              filter: fainted ? "grayscale(1)" : "drop-shadow(0 6px 5px rgba(0,0,0,.3))",
+              opacity: fainted ? 0.5 : 1,
+            }}
+          />
+        </div>
+      </div>
 
-          {isStaff && isWild && room.status === "active" && (
-            <CapturePanel room={room} onDone={load} onLog={pushLog} onError={setError} />
+      {/* abas + conteúdo */}
+      <div className="px-4 pt-2 pb-4">
+        <div className="flex gap-1 border-b border-neutral-100">
+          {TABS.map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`relative px-2.5 py-2 text-[12px] font-bold transition-colors ${
+                tab === k ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-600"
+              }`}
+            >
+              {label}
+              {tab === k && <span className="absolute inset-x-1 -bottom-px h-0.5 rounded bg-neutral-900" />}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 min-h-[112px]">
+          {tab === "moves" ? (
+            <MovesTab ctrl={ctrl} room={room} isStaff={isStaff} onLog={onLog} onError={onError} reload={reload} />
+          ) : (
+            <PlaceholderTab label={TABS.find((t) => t[0] === tab)?.[1] ?? ""} />
           )}
         </div>
 
-        {!isWild && "uid" in room.side_b && (
-          <PartySidebar uid={room.side_b.uid} activePokemonId={room.side_b.pokemon_id} />
+        {ctrl.isTrainer && ctrl.uid && (
+          <PartyStrip
+            room={room}
+            side={ctrl.sideKey}
+            uid={ctrl.uid}
+            activePokemonId={"pokemon_id" in data ? data.pokemon_id : ""}
+            canSwap={(isStaff || ctrl.isOwner) && room.status === "active" && fainted}
+            onDone={reload}
+            onError={onError}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function BattleLog({ entries }: { entries: string[] }) {
+function PokeballWatermark() {
   return (
-    <div className="rounded-lg border border-accent-500/15 bg-bg-900/40 p-3 text-left">
-      <p className="mb-2 text-xs font-medium text-accent-500">Log de batalha</p>
-      {entries.length === 0 ? (
-        <p className="text-xs text-accent-500">Nenhuma ação ainda.</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {entries.map((entry, i) => (
-            <li key={i} className="border-b border-accent-500/10 pb-1 text-xs text-accent-300 last:border-0">
-              {entry}
-            </li>
-          ))}
-        </ul>
-      )}
+    <svg
+      viewBox="0 0 100 100"
+      className="pointer-events-none absolute -top-6 -right-6 h-32 w-32 opacity-15"
+      aria-hidden="true"
+    >
+      <circle cx="50" cy="50" r="46" fill="none" stroke="#fff" strokeWidth="6" />
+      <line x1="4" y1="50" x2="96" y2="50" stroke="#fff" strokeWidth="6" />
+      <circle cx="50" cy="50" r="14" fill="#fff" />
+      <circle cx="50" cy="50" r="7" fill={"#fff"} stroke="#fff" strokeWidth="4" />
+    </svg>
+  );
+}
+
+function TypeBadge({ type }: { type: string }) {
+  return (
+    <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white uppercase">{type}</span>
+  );
+}
+
+function HpBar({
+  percent,
+  current,
+  max,
+  showExact,
+  level,
+}: {
+  percent: number;
+  current: number;
+  max: number;
+  showExact: boolean;
+  level: number;
+}) {
+  const color = percent <= 20 ? "#e0392b" : percent <= 50 ? "#f7c948" : "#4ece3a";
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10px] font-bold text-white/90">
+        <span>HP · Nv {level}</span>
+        <span>{showExact ? `${current}/${max}` : `${percent}%`}</span>
+      </div>
+      <div className="mt-0.5 h-2.5 overflow-hidden rounded-full bg-black/25 ring-1 ring-white/20">
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${percent}%`, background: color }} />
+      </div>
     </div>
   );
 }
 
-function PartySidebar({ uid, activePokemonId }: { uid: string; activePokemonId: string }) {
+function PlaceholderTab({ label }: { label: string }) {
+  return (
+    <div className="flex h-24 items-center justify-center rounded-2xl bg-neutral-50 text-sm font-medium text-neutral-400">
+      {label} — em breve
+    </div>
+  );
+}
+
+/* Aba Moves: pílulas de ataque (estilo do print). Só o mestre aplica o dano. */
+function MovesTab({
+  ctrl,
+  room,
+  isStaff,
+  onLog,
+  onError,
+  reload,
+}: {
+  ctrl: SideController;
+  room: BattleRoom;
+  isStaff: boolean;
+  onLog: (msg: string) => void;
+  onError: (msg: string) => void;
+  reload: () => void;
+}) {
+  void onLog;
+  void onError;
+  void reload;
+  // Turno: só ataca se ninguém atacou ainda (mestre escolhe quem começa) ou se
+  // o último a atacar foi o adversário. Quem acabou de atacar espera a vez.
+  const isMyTurn = room.last_attacker == null || room.last_attacker !== ctrl.sideKey;
+  const canAttack = isStaff && room.status === "active" && ctrl.data.current_hp > 0 && isMyTurn;
+  const waitingTurn = isStaff && room.status === "active" && ctrl.data.current_hp > 0 && !isMyTurn;
+
+  if (ctrl.activeMoves.length === 0) {
+    return <p className="py-4 text-center text-sm text-neutral-400">Sem ataques definidos.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {ctrl.pool.length > MAX_BATTLE_MOVES && canAttack && (
+        <button
+          ref={ctrl.pickerTriggerRef}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            ctrl.togglePicker();
+          }}
+          className="text-[11px] font-semibold text-neutral-500 hover:text-neutral-800"
+        >
+          Escolher ataques da batalha ({ctrl.activeMoves.length}/{MAX_BATTLE_MOVES})
+        </button>
+      )}
+
+      {ctrl.pickerOpen &&
+        ctrl.pickerPos &&
+        createPortal(
+          <div
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{ top: ctrl.pickerPos.top, left: ctrl.pickerPos.left }}
+            className="fixed z-50 grid max-h-64 w-56 grid-cols-1 gap-1 overflow-y-auto rounded-xl bg-white p-2 text-left shadow-2xl ring-1 ring-black/10"
+          >
+            {ctrl.pool.map((move) => (
+              <label key={move} className="flex items-center gap-2 text-xs font-medium text-neutral-700">
+                <input
+                  type="checkbox"
+                  checked={ctrl.activeMoves.includes(move)}
+                  onChange={() => ctrl.toggleActiveMove(move)}
+                  disabled={!ctrl.activeMoves.includes(move) && ctrl.activeMoves.length >= MAX_BATTLE_MOVES}
+                />
+                {moveDisplayName(move)}
+              </label>
+            ))}
+          </div>,
+          document.body,
+        )}
+
+      <div className="flex flex-col items-start gap-2">
+        {ctrl.activeMoves.map((move) => (
+          <MovePill
+            key={move}
+            name={moveDisplayName(move)}
+            type={ctrl.moveTypes[move]}
+            busy={ctrl.busyMove === move}
+            active={ctrl.pendingMultiMove === move}
+            disabled={!canAttack || ctrl.busyMove === move}
+            onClick={() => canAttack && ctrl.handleMoveClick(move)}
+          />
+        ))}
+      </div>
+
+      {ctrl.pendingMultiMove && <MultiHitPopover ctrl={ctrl} move={ctrl.pendingMultiMove} />}
+
+      {waitingTurn && (
+        <p className="pt-1 text-[11px] font-semibold text-amber-600">Aguardando o adversário atacar…</p>
+      )}
+      {!isStaff && <p className="pt-1 text-[11px] text-neutral-400">Só o mestre aplica os ataques.</p>}
+    </div>
+  );
+}
+
+function MovePill({
+  name,
+  type,
+  onClick,
+  disabled,
+  busy,
+  active,
+}: {
+  name: string;
+  type: string | null | undefined;
+  onClick: () => void;
+  disabled: boolean;
+  busy: boolean;
+  active: boolean;
+}) {
+  const color = typeColor(type) ?? "#9aa0a9";
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-2 rounded-full py-1 pr-4 pl-1 text-left transition enabled:hover:brightness-[0.97] disabled:cursor-default disabled:opacity-70"
+      style={{
+        background: active ? `${color}2e` : "#e7e9ed",
+        boxShadow: active ? `inset 0 0 0 2px ${color}` : "none",
+      }}
+    >
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+        style={{ background: color, boxShadow: "inset 0 -2px 3px rgba(0,0,0,0.22)" }}
+      >
+        <TypeIcon type={type} className="h-5 w-5" />
+      </span>
+      <span className="text-[12.5px] font-bold whitespace-nowrap text-neutral-600">{busy ? "..." : name}</span>
+    </button>
+  );
+}
+
+function MultiHitPopover({ ctrl, move }: { ctrl: SideController; move: string }) {
+  return (
+    <div className="space-y-1.5 rounded-xl bg-neutral-50 p-2.5 ring-1 ring-black/5">
+      <p className="text-[10px] font-bold text-neutral-700">{moveDisplayName(move)} — múltiplos golpes</p>
+      <label className="flex items-center gap-1.5 text-[10px] font-medium text-neutral-600">
+        <input type="checkbox" checked={ctrl.validated} onChange={(e) => ctrl.setValidated(e.target.checked)} />
+        Validado no dado
+      </label>
+      <input
+        type="number"
+        min={0}
+        value={ctrl.hitCount}
+        onChange={(e) => ctrl.setHitCount(e.target.value)}
+        placeholder="Nº de golpes"
+        className="w-full rounded-lg border border-neutral-200 px-2 py-1 text-xs"
+      />
+      <button
+        onClick={ctrl.applyMultiAttack}
+        className="w-full rounded-lg py-1 text-xs font-bold text-white"
+        style={{ background: "#dc0a2d" }}
+      >
+        Aplicar
+      </button>
+    </div>
+  );
+}
+
+function PartyStrip({
+  room,
+  side,
+  uid,
+  activePokemonId,
+  canSwap,
+  onDone,
+  onError,
+}: {
+  room: BattleRoom;
+  side: "a" | "b";
+  uid: string;
+  activePokemonId: string;
+  canSwap: boolean;
+  onDone: () => void;
+  onError: (msg: string) => void;
+}) {
   const [party, setParty] = useState<Pokemon[]>([]);
 
   useEffect(() => {
-    api.get<Pokemon[]>(`/players/${uid}/pokemons`).then((all) => setParty(all.filter((p) => p.in_party)));
-  }, [uid]);
+    api
+      .get<Pokemon[]>(`/players/${uid}/pokemons`)
+      .then((all) => setParty(all.filter((p) => p.in_party)))
+      .catch(() => {});
+  }, [uid, activePokemonId]);
 
   const slots: (Pokemon | null)[] = [...party, ...Array(6).fill(null)].slice(0, 6);
 
+  const swap = async (pokemonId: string) => {
+    try {
+      await api.post(`/battles/${room.id}/swap`, { side, pokemon_id: pokemonId });
+      onDone();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : "Erro ao trocar pokémon.");
+    }
+  };
+
   return (
-    <div className="flex flex-row gap-2 lg:w-16 lg:flex-col">
-      {slots.map((p, i) =>
-        p ? (
-          <div
-            key={p.id}
-            title={p.nickname}
-            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border ${
-              p.id === activePokemonId
-                ? "border-accent-300 bg-accent-300/10"
-                : p.current_hp <= 0
-                  ? "border-accent-500/10 opacity-30 grayscale"
-                  : "border-accent-500/20"
-            }`}
-          >
-            <img
-              src={animatedSpriteUrl(p.species)}
-              alt={p.nickname}
-              className="h-10 w-10 object-contain"
-              loading="lazy"
-            />
-          </div>
-        ) : (
-          <div
-            key={`empty-${i}`}
-            className="h-14 w-14 shrink-0 rounded-lg border border-dashed border-accent-500/15"
-          />
-        ),
-      )}
+    <div className="mt-3 border-t border-neutral-100 pt-3">
+      <p className="mb-1.5 text-[10px] font-bold tracking-wide text-neutral-400 uppercase">
+        Party{canSwap ? " · toque para trocar" : ""}
+      </p>
+      <div className="flex gap-1.5">
+        {slots.map((p, i) =>
+          p ? (
+            <button
+              key={p.id}
+              disabled={!(canSwap && p.current_hp > 0 && p.id !== activePokemonId)}
+              onClick={() => swap(p.id)}
+              title={p.nickname}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition ${
+                p.id === activePokemonId
+                  ? "border-neutral-800 bg-neutral-100"
+                  : p.current_hp <= 0
+                    ? "border-neutral-100 opacity-30 grayscale"
+                    : "border-neutral-200"
+              } ${canSwap && p.current_hp > 0 && p.id !== activePokemonId ? "cursor-pointer hover:border-neutral-800" : "cursor-default"}`}
+            >
+              <img src={animatedSpriteUrl(p.species)} alt={p.nickname} className="h-8 w-8 object-contain" loading="lazy" />
+            </button>
+          ) : (
+            <div key={`empty-${i}`} className="h-11 w-11 shrink-0 rounded-xl border border-dashed border-neutral-200" />
+          ),
+        )}
+      </div>
     </div>
   );
 }
 
-function sideDisplay(side: BattleRoom["side_a"] | BattleRoom["side_b"]) {
-  if ("is_wild" in side) {
-    return { title: "Selvagem", subtitle: `${side.species} · nv. ${side.level}` };
-  }
-  return { title: "Treinador", subtitle: `${side.species} · nv. ${side.level}` };
+/* ============================ CONTROLLER ============================ */
+
+interface SideController {
+  sideKey: "a" | "b";
+  data: BattleRoom["side_a"] | BattleRoom["side_b"];
+  hpPercent: number;
+  isTrainer: boolean;
+  isOwner: boolean;
+  uid: string | null;
+  pool: string[];
+  activeMoves: string[];
+  moveTypes: Record<string, string | null>;
+  pickerOpen: boolean;
+  pickerPos: { top: number; left: number } | null;
+  pickerTriggerRef: RefObject<HTMLButtonElement | null>;
+  togglePicker: () => void;
+  toggleActiveMove: (move: string) => void;
+  handleMoveClick: (move: string) => void;
+  busyMove: string | null;
+  pendingMultiMove: string | null;
+  hitCount: string;
+  setHitCount: (v: string) => void;
+  validated: boolean;
+  setValidated: (v: boolean) => void;
+  applyMultiAttack: () => void;
 }
 
-/** Retorna o pool de golpes do lado: até 8 conhecidos (persistidos) pro
- * treinador, ou até 6 inferidos por nível pro selvagem (sem pool persistente). */
 function useSideMoves(data: BattleRoom["side_a"] | BattleRoom["side_b"]): string[] {
   const [wildMoves, setWildMoves] = useState<string[]>([]);
   const isWildSide = "is_wild" in data;
@@ -223,36 +622,28 @@ function useSideMoves(data: BattleRoom["side_a"] | BattleRoom["side_b"]): string
   return "moves" in data ? data.moves : [];
 }
 
-function moveDisplayName(slug: string): string {
-  return slug
-    .split("-")
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join(" ");
-}
-
-function SideCard({
+function useSideController({
   room,
   side,
-  isStaff,
   onLog,
   onError,
   reload,
 }: {
   room: BattleRoom;
   side: "a" | "b";
-  isStaff: boolean;
   onLog: (msg: string) => void;
   onError: (msg: string) => void;
   reload: () => void;
-}) {
+}): SideController {
   const { player } = useAuth();
   const data = side === "a" ? room.side_a : room.side_b;
   const opponentData = side === "a" ? room.side_b : room.side_a;
-  const { title, subtitle } = sideDisplay(data);
-  const hpPercent = Math.round((data.current_hp / data.max_hp) * 100);
+  const hpPercent = Math.max(0, Math.round((data.current_hp / data.max_hp) * 100));
   const isTrainer = !("is_wild" in data);
-  const isOwner = isTrainer && "uid" in data && data.uid === player?.uid;
+  const uid = isTrainer && "uid" in data ? data.uid : null;
+  const isOwner = isTrainer && uid === player?.uid;
   const pool = useSideMoves(data);
+
   const [activeMoves, setActiveMoves] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
@@ -282,6 +673,16 @@ function SideCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMoves.join("|")]);
 
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const close = () => {
+      setPickerOpen(false);
+      setPickerPos(null);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [pickerOpen]);
+
   const toggleActiveMove = (move: string) => {
     setActiveMoves((prev) => {
       if (prev.includes(move)) return prev.filter((m) => m !== move);
@@ -304,18 +705,8 @@ function SideCard({
     setPickerOpen(true);
   };
 
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const closeOnOutsideClick = () => {
-      setPickerOpen(false);
-      setPickerPos(null);
-    };
-    document.addEventListener("mousedown", closeOnOutsideClick);
-    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
-  }, [pickerOpen]);
-
   const targetSide = side === "a" ? "b" : "a";
-  const targetTitle = sideDisplay(opponentData).title;
+  const targetTitle = "is_wild" in opponentData ? "selvagem" : "oponente";
 
   const applySingleHit = async (move: string) => {
     setBusyMove(move);
@@ -330,14 +721,9 @@ function SideCard({
       advantage = false;
     }
     try {
-      const result = await api.post<BattleActionResult>(`/battles/${room.id}/hit`, {
-        target: targetSide,
-        advantage,
-      });
+      const result = await api.post<BattleActionResult>(`/battles/${room.id}/hit`, { target: targetSide, advantage });
       onLog(
-        `${moveDisplayName(move)}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}${
-          advantage ? " (super efetivo!)" : ""
-        }.`,
+        `${moveDisplayName(move)}: ${result.damage_dealt} de dano no ${targetTitle}${advantage ? " (super efetivo!)" : ""}.`,
       );
       reload();
     } catch (err) {
@@ -358,7 +744,7 @@ function SideCard({
       });
       onLog(
         validated
-          ? `${moveDisplayName(move)}: ${result.damage_dealt} de dano em ${targetTitle.toLowerCase()}.`
+          ? `${moveDisplayName(move)}: ${result.damage_dealt} de dano no ${targetTitle}.`
           : `${moveDisplayName(move)} falhou na validação.`,
       );
       setPendingMultiMove(null);
@@ -370,7 +756,7 @@ function SideCard({
 
   const handleMoveClick = (move: string) => {
     if (isMultiHitMove(move)) {
-      setPendingMultiMove(pendingMultiMove === move ? null : move);
+      setPendingMultiMove((prev) => (prev === move ? null : move));
       setHitCount("1");
       setValidated(true);
     } else {
@@ -378,175 +764,48 @@ function SideCard({
     }
   };
 
-  return (
-    <div className="rounded-lg border border-accent-500/15 bg-bg-900/40 p-4 text-center">
-      <div className="flex items-center justify-center gap-2">
-        <img src={animatedSpriteUrl(data.species)} alt="" className="h-12 w-12 object-contain" loading="lazy" />
-        <div>
-          <p className="text-xs text-accent-500">{title}</p>
-          <p className="font-semibold text-accent-200">{subtitle}</p>
-        </div>
-      </div>
-      <div className="mt-2 h-2 w-full rounded-full bg-bg-900">
-        <div
-          className={`h-2 rounded-full ${hpPercent <= 34 ? "bg-red-500" : "bg-hp-500"}`}
-          style={{ width: `${hpPercent}%` }}
-        />
-      </div>
-      <p className="mt-1 text-xs text-accent-500">
-        {data.current_hp} / {data.max_hp} vida
-      </p>
-
-      {isStaff && room.status === "active" && data.current_hp > 0 && (
-        <div className="mt-3">
-          {pool.length > MAX_BATTLE_MOVES && (
-            <button
-              ref={pickerTriggerRef}
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePicker();
-              }}
-              className="mb-2 w-full text-xs text-accent-500 hover:text-accent-300"
-            >
-              Ataques desta batalha ({activeMoves.length}/{MAX_BATTLE_MOVES}) — {pickerOpen ? "fechar" : "escolher"}
-            </button>
-          )}
-
-          {pickerOpen &&
-            pickerPos &&
-            createPortal(
-              <div
-                onMouseDown={(e) => e.stopPropagation()}
-                style={{ top: pickerPos.top, left: pickerPos.left }}
-                className="fixed z-50 grid max-h-64 w-56 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-accent-500/25 bg-bg-900/95 p-2 text-left backdrop-blur-sm"
-              >
-                {pool.map((move) => (
-                  <label key={move} className="flex items-center gap-1 text-xs text-accent-300">
-                    <input
-                      type="checkbox"
-                      checked={activeMoves.includes(move)}
-                      onChange={() => toggleActiveMove(move)}
-                      disabled={!activeMoves.includes(move) && activeMoves.length >= MAX_BATTLE_MOVES}
-                    />
-                    {moveDisplayName(move)}
-                  </label>
-                ))}
-              </div>,
-              document.body,
-            )}
-
-          {activeMoves.length === 0 ? (
-            <p className="text-xs text-accent-500">Sem ataques definidos.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-1.5">
-              {activeMoves.map((move) => {
-                const color = typeColor(moveTypes[move]);
-                return (
-                  <button
-                    key={move}
-                    onClick={() => handleMoveClick(move)}
-                    disabled={busyMove === move}
-                    style={color ? { borderColor: color, color } : undefined}
-                    className="rounded-lg border border-accent-500/25 px-2 py-1.5 text-xs text-accent-300 hover:opacity-80 disabled:opacity-50"
-                  >
-                    {busyMove === move ? "..." : moveDisplayName(move)}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {pendingMultiMove && (
-            <div className="mt-2 space-y-2 rounded-lg border border-accent-500/15 p-2 text-left">
-              <p className="text-xs font-medium text-accent-200">
-                {moveDisplayName(pendingMultiMove)} (múltiplos golpes)
-              </p>
-              <label className="flex items-center gap-2 text-xs text-accent-500">
-                <input type="checkbox" checked={validated} onChange={(e) => setValidated(e.target.checked)} />
-                Validado no dado
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={hitCount}
-                onChange={(e) => setHitCount(e.target.value)}
-                placeholder="Número de golpes"
-                className={`${FIELD_INPUT} text-sm`}
-              />
-              <button onClick={applyMultiAttack} className={`w-full text-sm ${ACCENT_BUTTON}`}>
-                Aplicar
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {(isStaff || isOwner) && room.status === "active" && data.current_hp <= 0 && isTrainer && "uid" in data && (
-        <SwapPanel room={room} side={side} uid={data.uid} onDone={reload} onError={onError} />
-      )}
-    </div>
-  );
+  return {
+    sideKey: side,
+    data,
+    hpPercent,
+    isTrainer,
+    isOwner,
+    uid,
+    pool,
+    activeMoves,
+    moveTypes,
+    pickerOpen,
+    pickerPos,
+    pickerTriggerRef,
+    togglePicker,
+    toggleActiveMove,
+    handleMoveClick,
+    busyMove,
+    pendingMultiMove,
+    hitCount,
+    setHitCount,
+    validated,
+    setValidated,
+    applyMultiAttack,
+  };
 }
 
-function SwapPanel({
-  room,
-  side,
-  uid,
-  onDone,
-  onError,
-}: {
-  room: BattleRoom;
-  side: "a" | "b";
-  uid: string;
-  onDone: () => void;
-  onError: (msg: string) => void;
-}) {
-  const [pokemons, setPokemons] = useState<Pokemon[]>([]);
-  const [open, setOpen] = useState(false);
+/* ============================ PAINÉIS ============================ */
 
-  useEffect(() => {
-    if (!open) return;
-    api
-      .get<Pokemon[]>(`/players/${uid}/pokemons`)
-      .then((all) => setPokemons(all.filter((p) => p.current_hp > 0 && p.in_party)));
-  }, [open, uid]);
-
-  const doSwap = async (pokemonId: string) => {
-    try {
-      await api.post(`/battles/${room.id}/swap`, { side, pokemon_id: pokemonId });
-      setOpen(false);
-      onDone();
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Erro ao trocar pokémon.");
-    }
-  };
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="mx-auto mt-3 flex h-12 w-12 items-center justify-center rounded-full border border-accent-300/40 text-accent-300"
-        aria-label="Trocar pokémon"
-      >
-        ⟳
-      </button>
-    );
-  }
-
+function BattleLog({ entries }: { entries: string[] }) {
   return (
-    <div className="mt-2 space-y-1">
-      {pokemons.length === 0 ? (
-        <p className="text-xs text-accent-500">Sem pokémons disponíveis.</p>
+    <div className="rounded-2xl border border-black/5 bg-white/90 p-3 shadow">
+      <p className="mb-2 text-[11px] font-bold tracking-wide text-neutral-500 uppercase">Log de batalha</p>
+      {entries.length === 0 ? (
+        <p className="text-xs text-neutral-400">Nenhuma ação ainda.</p>
       ) : (
-        pokemons.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => doSwap(p.id)}
-            className="block w-full rounded-lg border border-accent-500/15 px-2 py-1 text-xs text-accent-300 hover:border-accent-300/40"
-          >
-            {p.nickname} (nv. {p.level})
-          </button>
-        ))
+        <ul className="space-y-1">
+          {entries.map((entry, i) => (
+            <li key={i} className="border-b border-black/5 pb-1 text-xs text-neutral-600 last:border-0">
+              {entry}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -579,10 +838,7 @@ function CapturePanel({
   const submit = async (success: boolean) => {
     setSubmitting(true);
     try {
-      const result = await api.post<BattleActionResult>(`/battles/${room.id}/capture`, {
-        ball_type: ballType,
-        success,
-      });
+      const result = await api.post<BattleActionResult>(`/battles/${room.id}/capture`, { ball_type: ballType, success });
       onLog(result.capture_success ? "Captura bem-sucedida!" : "Captura falhou.");
       loadTrainer();
       onDone();
@@ -595,7 +851,11 @@ function CapturePanel({
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className={ACCENT_BUTTON}>
+      <button
+        onClick={() => setOpen(true)}
+        className="self-start rounded-full px-4 py-2 text-sm font-bold text-white"
+        style={{ background: "linear-gradient(180deg,#e5153a,#c00822)" }}
+      >
         Captura
       </button>
     );
@@ -604,19 +864,19 @@ function CapturePanel({
   const available = trainer?.pokeballs[ballType] ?? 0;
 
   return (
-    <div className={`${GLASS_CARD} w-full max-w-sm space-y-3 p-4`}>
+    <div className="w-full max-w-sm space-y-3 rounded-2xl border border-black/5 bg-white p-4 shadow-lg">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-accent-200">Captura</p>
-        <button onClick={() => setOpen(false)} className="text-xs text-accent-500 hover:text-accent-300">
+        <p className="text-sm font-bold text-neutral-800">Captura</p>
+        <button onClick={() => setOpen(false)} className="text-xs font-medium text-neutral-400 hover:text-neutral-600">
           Fechar
         </button>
       </div>
-      <p className="text-xs text-accent-500">≥35% de vida: vencer as 3 rodadas · &lt;35%: vencer 2 de 3</p>
+      <p className="text-xs text-neutral-500">≥35% de vida: vencer as 3 rodadas · &lt;35%: vencer 2 de 3</p>
 
       <select
         value={ballType}
         onChange={(e) => setBallType(e.target.value as typeof ballType)}
-        className={`${FIELD_INPUT} text-sm`}
+        className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-sm"
       >
         {(["pokebola", "superbola", "ultrabola"] as const).map((type) => (
           <option key={type} value={type}>
@@ -625,23 +885,24 @@ function CapturePanel({
         ))}
       </select>
 
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         <button
           onClick={() => submit(true)}
           disabled={submitting || available <= 0}
-          className={`flex-1 text-sm ${ACCENT_BUTTON}`}
+          className="flex-1 rounded-full py-2 text-sm font-bold text-white disabled:opacity-50"
+          style={{ background: "linear-gradient(180deg,#e5153a,#c00822)" }}
         >
           Sucesso
         </button>
         <button
           onClick={() => submit(false)}
           disabled={submitting || available <= 0}
-          className="flex-1 rounded-lg border border-red-400/40 py-2 text-sm text-red-400 disabled:opacity-50"
+          className="flex-1 rounded-full border-2 border-neutral-200 py-2 text-sm font-semibold text-neutral-600 disabled:opacity-50"
         >
           Falha
         </button>
       </div>
-      {available <= 0 && <p className="text-xs text-red-400">Sem {BALL_LABELS[ballType].toLowerCase()} disponível.</p>}
+      {available <= 0 && <p className="text-xs text-red-500">Sem {BALL_LABELS[ballType].toLowerCase()} disponível.</p>}
     </div>
   );
 }
@@ -671,9 +932,13 @@ function ApprovalPanel({ room, onDone }: { room: BattleRoom; onDone: () => void 
   };
 
   return (
-    <div className={`${GLASS_CARD} space-y-2 p-4`}>
-      <p className="text-sm text-accent-200">Aprovar batalha — escolha o pokémon do oponente</p>
-      <select value={pokemonId} onChange={(e) => setPokemonId(e.target.value)} className={FIELD_INPUT}>
+    <div className="space-y-2 rounded-2xl border border-black/5 bg-white/90 p-4 shadow-lg">
+      <p className="text-sm font-semibold text-neutral-700">Aprovar batalha — escolha o pokémon do oponente</p>
+      <select
+        value={pokemonId}
+        onChange={(e) => setPokemonId(e.target.value)}
+        className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-sm"
+      >
         <option value="">Pokémon do oponente</option>
         {pokemons.map((p) => (
           <option key={p.id} value={p.id}>
@@ -681,8 +946,12 @@ function ApprovalPanel({ room, onDone }: { room: BattleRoom; onDone: () => void 
           </option>
         ))}
       </select>
-      {error && <p className="text-xs text-red-400">{error}</p>}
-      <button onClick={approve} className={ACCENT_BUTTON}>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <button
+        onClick={approve}
+        className="rounded-full px-4 py-2 text-sm font-bold text-white"
+        style={{ background: "linear-gradient(180deg,#e5153a,#c00822)" }}
+      >
         Aprovar e iniciar
       </button>
     </div>

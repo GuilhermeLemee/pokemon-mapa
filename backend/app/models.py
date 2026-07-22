@@ -125,6 +125,9 @@ class BattleRoom(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     finished_at: datetime | None = None
+    # Turno: lado ("a"/"b") que atacou por último. None = ninguém atacou ainda
+    # (o mestre escolhe quem começa). Um lado só ataca se não foi o último.
+    last_attacker: str | None = None
 
 
 class CreateParticipantBattleRequest(BaseModel):

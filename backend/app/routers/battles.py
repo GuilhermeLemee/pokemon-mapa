@@ -244,10 +244,15 @@ def hit(
     if room.status != BattleStatus.ACTIVE:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sala não está ativa")
 
+    attacker_key = "b" if body.target == "a" else "a"
+    if room.last_attacker == attacker_key:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Aguarde o adversário atacar antes de atacar novamente")
+
     target_key, target_side = _side_key(room, body.target)
-    _, attacker_side = _side_key(room, "b" if body.target == "a" else "a")
+    _, attacker_side = _side_key(room, attacker_key)
     damage = damage_for_attack(_attacker_level(attacker_side, pokemons), body.advantage)
     _apply_damage_to_side(room_id, target_key, target_side, damage, battles, pokemons)
+    battles.update(room_id, {"last_attacker": attacker_key})
 
     return BattleActionResult(room=battles.get(room_id), damage_dealt=damage)
 
@@ -264,13 +269,19 @@ def multi_attack(
     if room.status != BattleStatus.ACTIVE:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sala não está ativa")
 
+    attacker_key = "b" if body.target == "a" else "a"
+    if room.last_attacker == attacker_key:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Aguarde o adversário atacar antes de atacar novamente")
+
     if not body.validated:
-        return BattleActionResult(room=room, damage_dealt=0)
+        battles.update(room_id, {"last_attacker": attacker_key})
+        return BattleActionResult(room=battles.get(room_id), damage_dealt=0)
 
     target_key, target_side = _side_key(room, body.target)
-    _, attacker_side = _side_key(room, "b" if body.target == "a" else "a")
+    _, attacker_side = _side_key(room, attacker_key)
     damage = damage_for_multi_hit(_attacker_level(attacker_side, pokemons), body.hit_count)
     _apply_damage_to_side(room_id, target_key, target_side, damage, battles, pokemons)
+    battles.update(room_id, {"last_attacker": attacker_key})
 
     return BattleActionResult(room=battles.get(room_id), damage_dealt=damage)
 

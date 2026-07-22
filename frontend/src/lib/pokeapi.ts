@@ -8,6 +8,7 @@ export interface PokemonSpecies {
 const LIST_URL = "https://pokeapi.co/api/v2/pokemon?limit=2000";
 const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
 const ANIMATED_SPRITE_BASE = "https://play.pokemonshowdown.com/sprites/ani";
+const ANIMATED_BACK_SPRITE_BASE = "https://play.pokemonshowdown.com/sprites/ani-back";
 
 let cache: PokemonSpecies[] | null = null;
 let inflight: Promise<PokemonSpecies[]> | null = null;
@@ -19,6 +20,7 @@ export interface LearnableMove {
 }
 
 interface SpeciesDetail {
+  id: number;
   types: string[];
   learnableMoves: LearnableMove[];
 }
@@ -90,6 +92,12 @@ export function animatedSpriteUrl(speciesSlug: string): string {
   return `${ANIMATED_SPRITE_BASE}/${slug}.gif`;
 }
 
+/** Sprite animada de costas (visão do treinador olhando o próprio pokémon). */
+export function animatedBackSpriteUrl(speciesSlug: string): string {
+  const slug = speciesSlug.trim().toLowerCase().replace(/\s+/g, "-");
+  return `${ANIMATED_BACK_SPRITE_BASE}/${slug}.gif`;
+}
+
 function fetchSpeciesDetail(speciesSlug: string): Promise<SpeciesDetail> {
   const slug = speciesSlug.trim().toLowerCase().replace(/\s+/g, "-");
   if (!speciesDetailCache.has(slug)) {
@@ -97,7 +105,7 @@ function fetchSpeciesDetail(speciesSlug: string): Promise<SpeciesDetail> {
       slug,
       fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`)
         .then((res) => res.json())
-        .then((data: { moves: PokeApiMoveEntry[]; types: { type: { name: string } }[] }) => {
+        .then((data: { id: number; moves: PokeApiMoveEntry[]; types: { type: { name: string } }[] }) => {
           const byName = new Map<string, number>();
           for (const entry of data.moves) {
             const levelUpDetails = entry.version_group_details.filter(
@@ -112,7 +120,7 @@ function fetchSpeciesDetail(speciesSlug: string): Promise<SpeciesDetail> {
             .map(([name, moveLevel]) => ({ name, displayName: capitalize(name), level: moveLevel }))
             .sort((a, b) => a.level - b.level);
           const types = data.types.map((t) => t.type.name);
-          return { types, learnableMoves };
+          return { id: data.id, types, learnableMoves };
         }),
     );
   }
@@ -130,6 +138,15 @@ export async function fetchPokemonTypes(speciesSlug: string): Promise<string[]> 
     return types;
   } catch {
     return [];
+  }
+}
+
+export async function fetchDexNumber(speciesSlug: string): Promise<number | null> {
+  try {
+    const { id } = await fetchSpeciesDetail(speciesSlug);
+    return id;
+  } catch {
+    return null;
   }
 }
 

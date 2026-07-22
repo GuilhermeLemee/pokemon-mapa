@@ -68,6 +68,7 @@ export interface BattleRoom {
   side_a: TrainerSideHydrated;
   side_b: TrainerSideHydrated | WildSideHydrated;
   suggested_xp: number | null;
+  last_attacker: "a" | "b" | null;
 }
 
 export interface BattleActionResult {
