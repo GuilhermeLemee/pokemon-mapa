@@ -127,6 +127,7 @@ function BattleCards({
   const viewerIsB = "uid" in room.side_b && room.side_b.uid === player?.uid;
   const playerCtrl = viewerIsB ? b : a;
   const oppCtrl = viewerIsB ? a : b;
+  const canCapture = isStaff || player?.uid === room.side_a.uid;
 
   const finishBattle = async () => {
     try {
@@ -147,10 +148,10 @@ function BattleCards({
         <PokemonBattleCard ctrl={oppCtrl} room={room} isStaff={isStaff} reload={reload} onError={onError} onLog={onLog} isPlayerSide={false} />
       </div>
 
-      {isStaff && room.status === "active" && (
+      {room.status === "active" && (isStaff || (isWild && canCapture)) && (
         <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-black/5 bg-white/90 p-4 shadow">
-          {isWild && <CapturePanel room={room} onDone={reload} onLog={onLog} onError={onError} />}
-          {room.suggested_xp && (
+          {isWild && canCapture && <CapturePanel room={room} onDone={reload} onLog={onLog} onError={onError} />}
+          {isStaff && room.suggested_xp && (
             <div className="flex items-center gap-3">
               <p className="text-xs text-neutral-500">
                 XP sugerido: <span className="font-bold text-neutral-800">{room.suggested_xp}</span>
@@ -436,11 +437,14 @@ function MovesTab({
   void onLog;
   void onError;
   void reload;
+  // Quem controla o lado (dono do pokémon ou o mestre) pode atacar — a
+  // decisão de quem começa é do mestre na mesa, não da aplicação.
+  const canManage = isStaff || ctrl.isOwner;
   // Turno: só ataca se ninguém atacou ainda (mestre escolhe quem começa) ou se
   // o último a atacar foi o adversário. Quem acabou de atacar espera a vez.
   const isMyTurn = room.last_attacker == null || room.last_attacker !== ctrl.sideKey;
-  const canAttack = isStaff && room.status === "active" && ctrl.data.current_hp > 0 && isMyTurn;
-  const waitingTurn = isStaff && room.status === "active" && ctrl.data.current_hp > 0 && !isMyTurn;
+  const canAttack = canManage && room.status === "active" && ctrl.data.current_hp > 0 && isMyTurn;
+  const waitingTurn = canManage && room.status === "active" && ctrl.data.current_hp > 0 && !isMyTurn;
 
   if (ctrl.activeMoves.length === 0) {
     return <p className="py-4 text-center text-sm text-neutral-400">Sem ataques definidos.</p>;
@@ -448,7 +452,7 @@ function MovesTab({
 
   return (
     <div className="space-y-2">
-      {ctrl.pool.length > MAX_BATTLE_MOVES && canAttack && (
+      {ctrl.pool.length > MAX_BATTLE_MOVES && canManage && (
         <button
           ref={ctrl.pickerTriggerRef}
           onMouseDown={(e) => e.stopPropagation()}
@@ -504,7 +508,9 @@ function MovesTab({
       {waitingTurn && (
         <p className="pt-1 text-[11px] font-semibold text-amber-600">Aguardando o adversário atacar…</p>
       )}
-      {!isStaff && <p className="pt-1 text-[11px] text-neutral-400">Só o mestre aplica os ataques.</p>}
+      {!canManage && (
+        <p className="pt-1 text-[11px] text-neutral-400">Só o treinador deste pokémon (ou o mestre) aplica os ataques.</p>
+      )}
     </div>
   );
 }

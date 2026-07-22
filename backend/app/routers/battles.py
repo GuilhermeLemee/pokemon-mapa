@@ -92,6 +92,16 @@ def _side_key(room: BattleRoom, target: str) -> tuple[str, TrainerSide | WildSid
     return ("side_a", room.side_a) if target == "a" else ("side_b", room.side_b)
 
 
+def _ensure_can_attack(attacker_side: TrainerSide | WildSide, user: CurrentUser) -> None:
+    """Quem ataca é o dono do pokémon daquele lado (ou o mestre). Um lado
+    selvagem não tem dono — só o mestre controla os ataques dele."""
+    if user.role in STAFF_ROLES:
+        return
+    if isinstance(attacker_side, TrainerSide) and attacker_side.uid == user.uid:
+        return
+    raise HTTPException(status.HTTP_403_FORBIDDEN, "Só o dono do pokémon (ou o mestre) pode atacar")
+
+
 def _attacker_level(attacker_side: TrainerSide | WildSide, pokemons: PokemonRepository) -> int:
     if isinstance(attacker_side, WildSide):
         return attacker_side.level
@@ -236,7 +246,7 @@ def decline_battle(
 def hit(
     room_id: str,
     body: HitRequest,
-    _user: CurrentUser = Depends(require_staff),
+    user: CurrentUser = Depends(get_current_user),
     battles: BattleRoomRepository = Depends(get_battle_repo),
     pokemons: PokemonRepository = Depends(get_pokemon_repo),
 ) -> BattleActionResult:
@@ -245,11 +255,12 @@ def hit(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sala não está ativa")
 
     attacker_key = "b" if body.target == "a" else "a"
+    _, attacker_side = _side_key(room, attacker_key)
+    _ensure_can_attack(attacker_side, user)
     if room.last_attacker == attacker_key:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Aguarde o adversário atacar antes de atacar novamente")
 
     target_key, target_side = _side_key(room, body.target)
-    _, attacker_side = _side_key(room, attacker_key)
     damage = damage_for_attack(_attacker_level(attacker_side, pokemons), body.advantage)
     _apply_damage_to_side(room_id, target_key, target_side, damage, battles, pokemons)
     battles.update(room_id, {"last_attacker": attacker_key})
@@ -261,7 +272,7 @@ def hit(
 def multi_attack(
     room_id: str,
     body: MultiAttackRequest,
-    _user: CurrentUser = Depends(require_staff),
+    user: CurrentUser = Depends(get_current_user),
     battles: BattleRoomRepository = Depends(get_battle_repo),
     pokemons: PokemonRepository = Depends(get_pokemon_repo),
 ) -> BattleActionResult:
@@ -270,6 +281,8 @@ def multi_attack(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sala não está ativa")
 
     attacker_key = "b" if body.target == "a" else "a"
+    _, attacker_side = _side_key(room, attacker_key)
+    _ensure_can_attack(attacker_side, user)
     if room.last_attacker == attacker_key:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Aguarde o adversário atacar antes de atacar novamente")
 
@@ -278,7 +291,6 @@ def multi_attack(
         return BattleActionResult(room=battles.get(room_id), damage_dealt=0)
 
     target_key, target_side = _side_key(room, body.target)
-    _, attacker_side = _side_key(room, attacker_key)
     damage = damage_for_multi_hit(_attacker_level(attacker_side, pokemons), body.hit_count)
     _apply_damage_to_side(room_id, target_key, target_side, damage, battles, pokemons)
     battles.update(room_id, {"last_attacker": attacker_key})
@@ -290,7 +302,7 @@ def multi_attack(
 def capture(
     room_id: str,
     body: CaptureRequest,
-    _user: CurrentUser = Depends(require_staff),
+    user: CurrentUser = Depends(get_current_user),
     battles: BattleRoomRepository = Depends(get_battle_repo),
     pokemons: PokemonRepository = Depends(get_pokemon_repo),
     players: PlayerRepository = Depends(get_player_repo),
@@ -298,6 +310,8 @@ def capture(
     room = battles.get(room_id)
     if room.status != BattleStatus.ACTIVE or not isinstance(room.side_b, WildSide):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Captura só é possível contra um pokémon selvagem ativo")
+    if user.uid != room.side_a.uid and user.role not in STAFF_ROLES:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Só o treinador da batalha (ou o mestre) pode tentar capturar")
 
     wild = room.side_b
     if wild.current_hp <= 0:

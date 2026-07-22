@@ -66,7 +66,12 @@ const GLYPHS: Record<string, ReactNode> = {
       <circle cx="7.3" cy="10.2" r="0.9" fill="#7a7a7a" />
     </>
   ),
-  dark: <path d="M16 4a8 8 0 1 0 0 16 6.6 6.6 0 0 1 0-16Z" fill="#fff" />,
+  dark: (
+    <>
+      <circle cx="12.3" cy="12" r="7.2" fill="#fff" />
+      <circle cx="15.6" cy="8.9" r="5.8" fill="#705848" />
+    </>
+  ),
   steel: (
     <>
       <path d="M8.6 3.6h6.8L20.4 8.6v6.8l-5 5H8.6l-5-5V8.6Z" fill="#fff" />
