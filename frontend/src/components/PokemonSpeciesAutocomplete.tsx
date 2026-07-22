@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { searchSpecies, type PokemonSpecies } from "../lib/pokeapi";
-import { FIELD_INPUT } from "../lib/ui";
+
+const GHOST_INPUT =
+  "w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/30 focus:ring-white/30";
 
 export function PokemonSpeciesAutocomplete({
   value,
@@ -54,10 +56,10 @@ export function PokemonSpeciesAutocomplete({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        className={FIELD_INPUT}
+        className={GHOST_INPUT}
       />
       {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-accent-500/25 bg-bg-900/95 backdrop-blur-sm">
+        <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg bg-neutral-900/95 ring-1 ring-white/10 backdrop-blur-sm">
           {results.map((species) => (
             <li key={species.id}>
               <button
@@ -67,7 +69,7 @@ export function PokemonSpeciesAutocomplete({
                   setQuery(species.displayName);
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-accent-200 hover:bg-accent-300/10"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10"
               >
                 <img src={species.spriteUrl} alt="" className="h-8 w-8" loading="lazy" />
                 {species.displayName}

@@ -239,6 +239,11 @@ function PokemonBattleCard({
             <div className="mt-2">
               <HpBar percent={ctrl.hpPercent} current={data.current_hp} max={data.max_hp} showExact={isPlayerSide} level={data.level} />
             </div>
+            {ctrl.xpCurrent != null && ctrl.xpToNext != null && (
+              <div className="mt-1.5">
+                <XpBar level={data.level} current={ctrl.xpCurrent} toNext={ctrl.xpToNext} />
+              </div>
+            )}
           </div>
           <img
             src={animatedSpriteUrl(data.species)}
@@ -342,6 +347,68 @@ function HpBar({
   );
 }
 
+/** Barra de XP com animação de "subir de nível": ao detectar que o nível
+ * aumentou, enche até 100%, pisca e reinicia do 0 rumo ao valor novo —
+ * igual ao efeito clássico dos jogos Pokémon. */
+function XpBar({ level, current, toNext }: { level: number; current: number; toNext: number }) {
+  const percent = toNext > 0 ? Math.max(0, Math.min(100, Math.round((current / toNext) * 100))) : 0;
+  const prevRef = useRef<{ level: number; percent: number } | null>(null);
+  const [displayPercent, setDisplayPercent] = useState(percent);
+  const [instant, setInstant] = useState(true);
+  const [flash, setFlash] = useState(false);
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = { level, percent };
+
+    if (!prev) {
+      setInstant(true);
+      setDisplayPercent(percent);
+      return;
+    }
+    if (level > prev.level) {
+      setInstant(false);
+      setDisplayPercent(100);
+      setFlash(false);
+      const t1 = setTimeout(() => {
+        setFlash(true);
+        setInstant(true);
+        setDisplayPercent(0);
+      }, 550);
+      const t2 = setTimeout(() => {
+        setInstant(false);
+        setDisplayPercent(percent);
+      }, 650);
+      const t3 = setTimeout(() => setFlash(false), 950);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
+    setInstant(false);
+    setDisplayPercent(percent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level, percent]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[9px] font-bold text-sky-100/80">
+        <span>XP{flash ? " · Subiu de nível!" : ""}</span>
+        <span>
+          {current}/{toNext}
+        </span>
+      </div>
+      <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-black/25 ring-1 ring-white/15">
+        <div
+          className={`h-full rounded-full bg-sky-400 ${instant ? "" : "transition-all duration-500 ease-out"} ${flash ? "animate-pulse" : ""}`}
+          style={{ width: `${displayPercent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PlaceholderTab({ label }: { label: string }) {
   return (
     <div className="flex h-24 items-center justify-center rounded-2xl bg-neutral-50 text-sm font-medium text-neutral-400">
@@ -418,7 +485,7 @@ function MovesTab({
           document.body,
         )}
 
-      <div className="flex flex-col items-start gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {ctrl.activeMoves.map((move) => (
           <MovePill
             key={move}
@@ -462,7 +529,7 @@ function MovePill({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-full py-1 pr-4 pl-1 text-left transition enabled:hover:brightness-[0.97] disabled:cursor-default disabled:opacity-70"
+      className="flex w-full min-w-0 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-left transition enabled:hover:brightness-[0.97] disabled:cursor-default disabled:opacity-70"
       style={{
         background: active ? `${color}2e` : "#e7e9ed",
         boxShadow: active ? `inset 0 0 0 2px ${color}` : "none",
@@ -474,7 +541,7 @@ function MovePill({
       >
         <TypeIcon type={type} className="h-5 w-5" />
       </span>
-      <span className="text-[12.5px] font-bold whitespace-nowrap text-neutral-600">{busy ? "..." : name}</span>
+      <span className="min-w-0 truncate text-[12px] font-bold text-neutral-600">{busy ? "..." : name}</span>
     </button>
   );
 }
@@ -584,6 +651,8 @@ interface SideController {
   isTrainer: boolean;
   isOwner: boolean;
   uid: string | null;
+  xpCurrent: number | null;
+  xpToNext: number | null;
   pool: string[];
   activeMoves: string[];
   moveTypes: Record<string, string | null>;
@@ -643,6 +712,26 @@ function useSideController({
   const uid = isTrainer && "uid" in data ? data.uid : null;
   const isOwner = isTrainer && uid === player?.uid;
   const pool = useSideMoves(data);
+  const pokemonId = "pokemon_id" in data ? data.pokemon_id : "";
+
+  const [xp, setXp] = useState<{ current: number; toNext: number } | null>(null);
+  useEffect(() => {
+    if (!uid || !pokemonId) {
+      setXp(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<Pokemon[]>(`/players/${uid}/pokemons`)
+      .then((all) => {
+        const p = all.find((x) => x.id === pokemonId);
+        if (!cancelled && p) setXp({ current: p.current_xp, toNext: p.xp_to_next_level });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, pokemonId, data.level, data.current_hp, room.status]);
 
   const [activeMoves, setActiveMoves] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -771,6 +860,8 @@ function useSideController({
     isTrainer,
     isOwner,
     uid,
+    xpCurrent: xp?.current ?? null,
+    xpToNext: xp?.toNext ?? null,
     pool,
     activeMoves,
     moveTypes,

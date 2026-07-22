@@ -29,10 +29,7 @@ const GLYPHS: Record<string, ReactNode> = {
     </g>
   ),
   fighting: (
-    <>
-      <path d="M7 10.6c0-.8.6-1.4 1.4-1.4H15a2 2 0 0 1 2 2v3.4a3.6 3.6 0 0 1-3.6 3.6H10a3 3 0 0 1-3-3v-4.6Z" fill="#fff" />
-      <path d="M9.2 10.4V8.8a1.3 1.3 0 0 1 2.6 0v1.4" stroke="#fff" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </>
+    <path d="M8 9a1.6 1.6 0 0 1 3.2 0v.4a1.6 1.6 0 0 1 3.1-.4v.6a1.7 1.7 0 0 1 3.2.5v3.5a4.2 4.2 0 0 1-4.2 4.2h-1.6A4.2 4.2 0 0 1 7.5 13l-1.9-2.1a1.3 1.3 0 0 1 1.8-1.8L8 9.6Z" fill="#fff" />
   ),
   poison: (
     <>

@@ -6,7 +6,15 @@ import { PokemonSpeciesAutocomplete } from "../components/PokemonSpeciesAutocomp
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../lib/api";
 import { STAFF_ROLES, type BattleRoom, type Player, type Pokemon } from "../lib/types";
-import { ACCENT_BUTTON, FIELD_INPUT, GLASS_CARD } from "../lib/ui";
+
+export const PANEL = "rounded-[28px] bg-neutral-900/85 ring-1 ring-white/10 shadow-2xl backdrop-blur-xl";
+export const GHOST_INPUT =
+  "w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/30 focus:ring-white/30";
+export const GHOST_BUTTON =
+  "rounded-full px-3 py-2 text-sm font-semibold text-white/70 ring-1 ring-white/15 hover:bg-white/10 hover:text-white transition";
+export const RED_BUTTON =
+  "rounded-full px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50";
+const RED_BG = "linear-gradient(180deg,#e5153a,#c00822)";
 
 const STATUS_LABEL: Record<BattleRoom["status"], string> = {
   pending_approval: "Aguardando aprovação do mestre",
@@ -55,7 +63,7 @@ export function BattlesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`${PANEL} space-y-6 p-5 sm:p-6`}>
       <HealCenterPanel />
 
       <section className="flex flex-wrap gap-3">
@@ -66,7 +74,7 @@ export function BattlesPage() {
 
       {error && <p className="text-sm text-red-400">{error}</p>}
       {loading ? (
-        <p className="text-accent-500">Carregando...</p>
+        <p className="text-sm text-white/40">Carregando...</p>
       ) : (
         <>
           <RoomSection title="Pendentes" rooms={pending} emptyText="Nada pendente." />
@@ -97,15 +105,15 @@ function RoomSection({
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-accent-200">{title}</h2>
+        <h2 className="text-base font-extrabold text-white">{title}</h2>
         {onClear && (
-          <button onClick={onClear} className="text-xs text-accent-500 hover:text-accent-300">
+          <button onClick={onClear} className="text-xs font-medium text-white/40 hover:text-white/70">
             Limpar histórico
           </button>
         )}
       </div>
       {rooms.length === 0 ? (
-        <p className="text-sm text-accent-500">{emptyText}</p>
+        <p className="text-sm text-white/35">{emptyText}</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {rooms.map((room) => (
@@ -123,10 +131,13 @@ function sideLabel(side: BattleRoom["side_a"] | BattleRoom["side_b"]): string {
 
 function RoomCard({ room }: { room: BattleRoom }) {
   return (
-    <Link to={`/battles/${room.id}`} className={`${GLASS_CARD} block p-4 hover:border-accent-300/40`}>
-      <p className="text-xs text-accent-500">{STATUS_LABEL[room.status]}</p>
-      <p className="mt-1 text-sm text-accent-200">
-        {sideLabel(room.side_a)} <span className="text-accent-500">vs</span> {sideLabel(room.side_b)}
+    <Link
+      to={`/battles/${room.id}`}
+      className="block rounded-2xl bg-white/5 p-4 ring-1 ring-white/10 transition hover:bg-white/10 hover:ring-white/20"
+    >
+      <p className="text-xs font-medium text-white/40">{STATUS_LABEL[room.status]}</p>
+      <p className="mt-1 text-sm text-white/90">
+        {sideLabel(room.side_a)} <span className="text-white/40">vs</span> {sideLabel(room.side_b)}
       </p>
     </Link>
   );
@@ -146,12 +157,10 @@ function GymBattleStub() {
   }
 
   return (
-    <div className={`${GLASS_CARD} w-full max-w-sm space-y-3 p-4`}>
-      <p className="text-sm font-medium text-accent-200">Batalha de Ginásio</p>
-      <p className="text-sm text-accent-500">
-        Em breve — o catálogo de líderes de ginásio ainda não foi implementado.
-      </p>
-      <button onClick={() => setOpen(false)} className="px-3 text-sm text-accent-500 hover:text-accent-300">
+    <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+      <p className="text-sm font-semibold text-white">Batalha de Ginásio</p>
+      <p className="text-sm text-white/50">Em breve — o catálogo de líderes de ginásio ainda não foi implementado.</p>
+      <button onClick={() => setOpen(false)} className="px-3 text-sm text-white/40 hover:text-white/70">
         Fechar
       </button>
     </div>
@@ -205,30 +214,30 @@ function ChallengeForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <div className={`${GLASS_CARD} w-full max-w-sm space-y-3 p-4`}>
-      <p className="text-sm font-medium text-accent-200">Desafiar jogador</p>
-      <select value={myPokemonId} onChange={(e) => setMyPokemonId(e.target.value)} className={FIELD_INPUT}>
-        <option value="">Seu pokémon</option>
+    <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+      <p className="text-sm font-semibold text-white">Desafiar jogador</p>
+      <select value={myPokemonId} onChange={(e) => setMyPokemonId(e.target.value)} className={GHOST_INPUT}>
+        <option value="" className="bg-neutral-900">Seu pokémon</option>
         {pokemons.filter((p) => p.in_party).map((p) => (
-          <option key={p.id} value={p.id}>
+          <option key={p.id} value={p.id} className="bg-neutral-900">
             {p.nickname} (nv. {p.level})
           </option>
         ))}
       </select>
-      <select value={opponentUid} onChange={(e) => setOpponentUid(e.target.value)} className={FIELD_INPUT}>
-        <option value="">Oponente</option>
+      <select value={opponentUid} onChange={(e) => setOpponentUid(e.target.value)} className={GHOST_INPUT}>
+        <option value="" className="bg-neutral-900">Oponente</option>
         {players.map((p) => (
-          <option key={p.uid} value={p.uid}>
+          <option key={p.uid} value={p.uid} className="bg-neutral-900">
             {p.display_name}
           </option>
         ))}
       </select>
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">
-        <button onClick={handleSubmit} disabled={submitting} className={`flex-1 ${ACCENT_BUTTON}`}>
+        <button onClick={handleSubmit} disabled={submitting} className={`flex-1 ${RED_BUTTON}`} style={{ background: RED_BG }}>
           {submitting ? "Enviando..." : "Enviar desafio"}
         </button>
-        <button onClick={() => setOpen(false)} className="px-3 text-sm text-accent-500 hover:text-accent-300">
+        <button onClick={() => setOpen(false)} className={GHOST_BUTTON}>
           Cancelar
         </button>
       </div>
@@ -299,20 +308,20 @@ function WildEncounterForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <div className={`${GLASS_CARD} w-full max-w-sm space-y-3 p-4`}>
-      <p className="text-sm font-medium text-accent-200">Criar encontro selvagem</p>
-      <select value={targetUid} onChange={(e) => setTargetUid(e.target.value)} className={FIELD_INPUT}>
-        <option value="">Participante</option>
+    <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+      <p className="text-sm font-semibold text-white">Criar encontro selvagem</p>
+      <select value={targetUid} onChange={(e) => setTargetUid(e.target.value)} className={GHOST_INPUT}>
+        <option value="" className="bg-neutral-900">Participante</option>
         {players.map((p) => (
-          <option key={p.uid} value={p.uid}>
+          <option key={p.uid} value={p.uid} className="bg-neutral-900">
             {p.display_name}
           </option>
         ))}
       </select>
-      <select value={targetPokemonId} onChange={(e) => setTargetPokemonId(e.target.value)} className={FIELD_INPUT}>
-        <option value="">Pokémon do participante</option>
+      <select value={targetPokemonId} onChange={(e) => setTargetPokemonId(e.target.value)} className={GHOST_INPUT}>
+        <option value="" className="bg-neutral-900">Pokémon do participante</option>
         {pokemons.filter((p) => p.in_party).map((p) => (
-          <option key={p.id} value={p.id}>
+          <option key={p.id} value={p.id} className="bg-neutral-900">
             {p.nickname} (nv. {p.level})
           </option>
         ))}
@@ -324,14 +333,14 @@ function WildEncounterForm({ onCreated }: { onCreated: () => void }) {
         placeholder="Nível do selvagem"
         value={wildLevel}
         onChange={(e) => setWildLevel(e.target.value)}
-        className={FIELD_INPUT}
+        className={GHOST_INPUT}
       />
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">
-        <button onClick={handleSubmit} disabled={submitting} className={`flex-1 ${ACCENT_BUTTON}`}>
+        <button onClick={handleSubmit} disabled={submitting} className={`flex-1 ${RED_BUTTON}`} style={{ background: RED_BG }}>
           {submitting ? "Enviando..." : "Criar sala"}
         </button>
-        <button onClick={() => setOpen(false)} className="px-3 text-sm text-accent-500 hover:text-accent-300">
+        <button onClick={() => setOpen(false)} className={GHOST_BUTTON}>
           Cancelar
         </button>
       </div>

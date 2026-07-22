@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../lib/api";
 import { STAFF_ROLES, type HealRequest, type Player } from "../lib/types";
-import { ACCENT_BUTTON, GLASS_CARD } from "../lib/ui";
+
+const RED_BG = "linear-gradient(180deg,#e5153a,#c00822)";
 
 export function HealCenterPanel() {
   const { player } = useAuth();
@@ -48,13 +49,18 @@ export function HealCenterPanel() {
   const nameFor = (uid: string) => players.find((p) => p.uid === uid)?.display_name ?? uid;
 
   return (
-    <div className={`${GLASS_CARD} space-y-3 p-4`}>
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-accent-200">Centro Pokémon</p>
+    <div className="space-y-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-white">Centro Pokémon</p>
         {myPending ? (
-          <p className="text-sm text-accent-500">Aguardando aprovação do mestre...</p>
+          <p className="text-sm text-white/40">Aguardando aprovação do mestre...</p>
         ) : (
-          <button onClick={requestHeal} disabled={submitting} className={ACCENT_BUTTON}>
+          <button
+            onClick={requestHeal}
+            disabled={submitting}
+            className="rounded-full px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50"
+            style={{ background: RED_BG }}
+          >
             {submitting ? "Enviando..." : "Solicitar cura"}
           </button>
         )}
@@ -62,23 +68,24 @@ export function HealCenterPanel() {
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {isStaff && (
-        <div className="space-y-2 border-t border-accent-500/15 pt-3">
+        <div className="space-y-2 border-t border-white/10 pt-3">
           {pendingForStaff.length === 0 ? (
-            <p className="text-sm text-accent-500">Nenhum pedido de cura pendente.</p>
+            <p className="text-sm text-white/35">Nenhum pedido de cura pendente.</p>
           ) : (
             pendingForStaff.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg border border-accent-500/15 px-3 py-2">
-                <span className="text-sm text-accent-200">{nameFor(r.uid)}</span>
+              <div key={r.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+                <span className="text-sm text-white/90">{nameFor(r.uid)}</span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => respond(r.id, true)}
-                    className="rounded-lg bg-accent-300 px-3 py-1 text-xs font-medium text-bg-950 hover:bg-accent-200"
+                    className="rounded-lg px-3 py-1 text-xs font-bold text-white"
+                    style={{ background: RED_BG }}
                   >
                     Aprovar
                   </button>
                   <button
                     onClick={() => respond(r.id, false)}
-                    className="rounded-lg border border-red-400/40 px-3 py-1 text-xs text-red-400"
+                    className="rounded-lg px-3 py-1 text-xs font-semibold text-white/60 ring-1 ring-white/15 hover:text-white/90"
                   >
                     Recusar
                   </button>
