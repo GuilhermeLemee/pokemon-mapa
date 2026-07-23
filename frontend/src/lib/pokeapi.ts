@@ -19,9 +19,27 @@ export interface LearnableMove {
   level: number;
 }
 
+export interface BaseStat {
+  name: string;
+  value: number;
+}
+
+export interface PokemonInfo {
+  id: number;
+  types: string[];
+  abilities: string[];
+  heightM: number;
+  weightKg: number;
+  baseStats: BaseStat[];
+}
+
 interface SpeciesDetail {
   id: number;
   types: string[];
+  abilities: string[];
+  heightM: number;
+  weightKg: number;
+  baseStats: BaseStat[];
   learnableMoves: LearnableMove[];
 }
 
@@ -105,23 +123,43 @@ function fetchSpeciesDetail(speciesSlug: string): Promise<SpeciesDetail> {
       slug,
       fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`)
         .then((res) => res.json())
-        .then((data: { id: number; moves: PokeApiMoveEntry[]; types: { type: { name: string } }[] }) => {
-          const byName = new Map<string, number>();
-          for (const entry of data.moves) {
-            const levelUpDetails = entry.version_group_details.filter(
-              (d) => d.move_learn_method.name === "level-up",
-            );
-            if (levelUpDetails.length === 0) continue;
-            const minLevel = Math.min(...levelUpDetails.map((d) => d.level_learned_at));
-            const existing = byName.get(entry.move.name);
-            if (existing === undefined || minLevel < existing) byName.set(entry.move.name, minLevel);
-          }
-          const learnableMoves = Array.from(byName.entries())
-            .map(([name, moveLevel]) => ({ name, displayName: capitalize(name), level: moveLevel }))
-            .sort((a, b) => a.level - b.level);
-          const types = data.types.map((t) => t.type.name);
-          return { id: data.id, types, learnableMoves };
-        }),
+        .then(
+          (data: {
+            id: number;
+            height: number;
+            weight: number;
+            moves: PokeApiMoveEntry[];
+            types: { type: { name: string } }[];
+            abilities: { ability: { name: string }; is_hidden: boolean }[];
+            stats: { base_stat: number; stat: { name: string } }[];
+          }) => {
+            const byName = new Map<string, number>();
+            for (const entry of data.moves) {
+              const levelUpDetails = entry.version_group_details.filter(
+                (d) => d.move_learn_method.name === "level-up",
+              );
+              if (levelUpDetails.length === 0) continue;
+              const minLevel = Math.min(...levelUpDetails.map((d) => d.level_learned_at));
+              const existing = byName.get(entry.move.name);
+              if (existing === undefined || minLevel < existing) byName.set(entry.move.name, minLevel);
+            }
+            const learnableMoves = Array.from(byName.entries())
+              .map(([name, moveLevel]) => ({ name, displayName: capitalize(name), level: moveLevel }))
+              .sort((a, b) => a.level - b.level);
+            const types = data.types.map((t) => t.type.name);
+            const abilities = data.abilities.map((a) => capitalize(a.ability.name));
+            const baseStats = data.stats.map((s) => ({ name: s.stat.name, value: s.base_stat }));
+            return {
+              id: data.id,
+              types,
+              abilities,
+              heightM: data.height / 10,
+              weightKg: data.weight / 10,
+              baseStats,
+              learnableMoves,
+            };
+          },
+        ),
     );
   }
   return speciesDetailCache.get(slug)!;
@@ -145,6 +183,15 @@ export async function fetchDexNumber(speciesSlug: string): Promise<number | null
   try {
     const { id } = await fetchSpeciesDetail(speciesSlug);
     return id;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPokemonInfo(speciesSlug: string): Promise<PokemonInfo | null> {
+  try {
+    const { id, types, abilities, heightM, weightKg, baseStats } = await fetchSpeciesDetail(speciesSlug);
+    return { id, types, abilities, heightM, weightKg, baseStats };
   } catch {
     return null;
   }

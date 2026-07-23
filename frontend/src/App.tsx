@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { StarterSelectionPage } from "./pages/StarterSelectionPage";
 import { TreinadorPage } from "./pages/TreinadorPage";
 import { PartyPage } from "./pages/PartyPage";
+import { PokemonSummaryPage } from "./pages/PokemonSummaryPage";
 import { PokedexPage } from "./pages/PokedexPage";
 import { PokeMartPage } from "./pages/PokeMartPage";
 import { AdminPage } from "./pages/AdminPage";
@@ -42,6 +43,7 @@ function AppRoutes() {
       <Route element={<Layout />}>
         <Route path="/" element={<TreinadorPage />} />
         <Route path="/party" element={<PartyPage />} />
+        <Route path="/pokemon/:id" element={<PokemonSummaryPage />} />
         <Route path="/pokedex" element={<PokedexPage />} />
         <Route path="/pokemart" element={<PokeMartPage />} />
         <Route path="/battles" element={<BattlesPage />} />
