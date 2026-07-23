@@ -4,8 +4,12 @@ import { AvatarUpload } from "../components/AvatarUpload";
 import { GymBadges } from "../components/GymBadges";
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../lib/api";
-import { animatedSpriteUrl } from "../lib/pokeapi";
+import { animatedSpriteUrl, fetchPokemonTypes } from "../lib/pokeapi";
+import { typeColor } from "../lib/typeChart";
+import { TypeIcon } from "../lib/typeIcons";
 import type { BattleRoom, HealRequest, Pokemon } from "../lib/types";
+
+const MAX_PARTY_SIZE = 6;
 
 const RED = "#dc0a2d";
 const GREEN = "#4a9e70"; // verde das árvores do header
@@ -38,23 +42,41 @@ export function TreinadorPage() {
   const [healRequests, setHealRequests] = useState<HealRequest[]>([]);
   const [healSubmitting, setHealSubmitting] = useState(false);
   const [healError, setHealError] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  const loadPokemons = () => {
+    if (!player) return;
+    api.get<Pokemon[]>(`/players/${player.uid}/pokemons`).then(setPokemons);
+  };
 
   useEffect(() => {
     if (!player) return;
-    api.get<Pokemon[]>(`/players/${player.uid}/pokemons`).then(setPokemons);
+    loadPokemons();
     api.get<BattleRoom[]>("/battles").then((rooms) => setRecord(computeRecord(rooms, player.uid)));
     api.get<HealRequest[]>("/heal-requests").then(setHealRequests);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player]);
 
   if (!player) return null;
 
   const roleLabel = ROLE_LABEL[player.role] ?? player.role;
-  const partyCount = pokemons.filter((p) => p.in_party).length;
+  const party = pokemons.filter((p) => p.in_party);
+  const partyCount = party.length;
   const totalBalls = player.pokeballs.pokebola + player.pokeballs.superbola + player.pokeballs.ultrabola;
   const recent = [...pokemons]
     .sort((a, b) => (b.caught_at ?? "").localeCompare(a.caught_at ?? ""))
     .slice(0, 4);
   const healPending = healRequests.some((r) => r.uid === player.uid && r.status === "pending");
+
+  const sendToProfessor = async (pokemon: Pokemon) => {
+    setMoveError(null);
+    try {
+      await api.post(`/players/${player.uid}/pokemons/${pokemon.id}/party`, { in_party: false });
+      loadPokemons();
+    } catch (err) {
+      setMoveError(err instanceof ApiError ? err.message : "Erro ao enviar pokémon para o Professor.");
+    }
+  };
 
   const requestHeal = async () => {
     setHealSubmitting(true);
@@ -82,7 +104,7 @@ export function TreinadorPage() {
           {/* ---- coluna esquerda: avatar + retângulo vertical de informações ---- */}
           <div className="-mt-24 flex w-full shrink-0 flex-col items-center sm:-mt-28 sm:w-52">
             <AvatarUpload uid={player.uid} avatarUrl={player.avatar_data_url} />
-            <div className="mt-4 w-full max-w-52 divide-y divide-black/5 overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_10px_30px_-12px_rgba(0,0,0,0.3)]">
+            <div className="mt-4 grid w-full max-w-52 grid-cols-2 gap-px overflow-hidden rounded-3xl border border-black/5 bg-black/5 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.3)]">
               <StatRow
                 icon={<TrophyIcon />}
                 label="Vitórias / Derrotas"
@@ -124,7 +146,7 @@ export function TreinadorPage() {
 
             <div className="mt-4 flex flex-wrap gap-2.5">
               <ActionButton to="/pokedex" label="Pokédex" />
-              <ActionButton to="/party" label="Party" />
+              <ActionButton to="/laboratorio" label="Laboratório" />
               <button
                 type="button"
                 onClick={requestHeal}
@@ -139,7 +161,6 @@ export function TreinadorPage() {
               >
                 {healPending ? "Cura solicitada · aguardando" : healSubmitting ? "Enviando..." : "Pokémon Center"}
               </button>
-              <ActionButton to="/party#caixa" label="PC Pokémon" variant="ghost" />
             </div>
             {healError && <p className="mt-2 text-xs font-medium text-red-500">{healError}</p>}
 
@@ -150,6 +171,25 @@ export function TreinadorPage() {
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ==================== PARTY ==================== */}
+      <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.35)]">
+        <SectionHeader icon={<PartyIcon />} title="Party" />
+        {moveError && <p className="mb-3 text-xs font-medium text-red-500">{moveError}</p>}
+        <div className="grid grid-cols-2 gap-3">
+          {party.map((p) => (
+            <PartySlotCard key={p.id} pokemon={p} onSendToProfessor={() => sendToProfessor(p)} />
+          ))}
+          {Array.from({ length: MAX_PARTY_SIZE - party.length }).map((_, i) => (
+            <div
+              key={`empty-${i}`}
+              className="flex min-h-[168px] items-center justify-center rounded-2xl border-2 border-dashed border-neutral-200 text-sm font-medium text-neutral-300"
+            >
+              Vazio
+            </div>
+          ))}
         </div>
       </div>
 
@@ -166,7 +206,7 @@ export function TreinadorPage() {
                   <img src={animatedSpriteUrl(p.species)} alt={p.nickname} className="h-10 w-10 object-contain" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-neutral-800">{p.nickname}</p>
-                    <p className="text-xs text-neutral-500">Nv. {p.level}</p>
+                    <p className="text-xs text-neutral-500">Nível {p.level}</p>
                   </div>
                 </div>
               ))}
@@ -195,14 +235,12 @@ function StatRow({
   valueColor?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-lg font-black leading-none" style={{ color: valueColor }}>
-          {value}
-        </p>
-        <p className="mt-1 text-[10px] font-semibold tracking-wide text-neutral-400 uppercase">{label}</p>
-      </div>
+    <div className="flex flex-col items-center gap-1 bg-white px-2 py-3 text-center">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center">{icon}</span>
+      <p className="text-base font-black leading-none" style={{ color: valueColor }}>
+        {value}
+      </p>
+      <p className="text-[9px] leading-tight font-semibold tracking-wide text-neutral-400 uppercase">{label}</p>
     </div>
   );
 }
@@ -320,5 +358,98 @@ function ActionButton({ to, label, variant = "solid" }: { to: string; label: str
     >
       {label}
     </Link>
+  );
+}
+
+function PartyIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8.5" cy="8" r="3" />
+      <circle cx="16.5" cy="9.5" r="2.4" />
+      <path d="M3.5 20v-1.2A4.8 4.8 0 0 1 8.3 14h.4a4.8 4.8 0 0 1 4.8 4.8V20" />
+      <path d="M14.8 14.6a4 4 0 0 1 4.7 3.9V20" />
+    </svg>
+  );
+}
+
+function PartySlotCard({ pokemon, onSendToProfessor }: { pokemon: Pokemon; onSendToProfessor: () => void }) {
+  const [types, setTypes] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPokemonTypes(pokemon.species).then((t) => {
+      if (!cancelled) setTypes(t);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pokemon.species]);
+
+  const hpPercent = Math.max(0, Math.round((pokemon.current_hp / pokemon.max_hp) * 100));
+  const xpPercent =
+    pokemon.xp_to_next_level > 0
+      ? Math.max(0, Math.min(100, Math.round((pokemon.current_xp / pokemon.xp_to_next_level) * 100)))
+      : 0;
+  const fainted = pokemon.current_hp <= 0;
+  const hpColor = hpPercent <= 20 ? "#e0392b" : hpPercent <= 50 ? "#f0b429" : "#4ece3a";
+
+  return (
+    <div className="flex flex-col items-center rounded-2xl border border-black/5 bg-neutral-50 p-3 text-center">
+      <img
+        src={animatedSpriteUrl(pokemon.species)}
+        alt={pokemon.nickname}
+        className="h-14 w-14 object-contain"
+        style={{ filter: fainted ? "grayscale(1)" : "none", opacity: fainted ? 0.5 : 1 }}
+      />
+      <p className="mt-1 w-full truncate text-sm font-black text-neutral-900">{pokemon.nickname}</p>
+      <div className="mt-0.5 flex items-center gap-1.5">
+        <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black text-white" style={{ background: RED }}>
+          Nível {pokemon.level}
+        </span>
+        {types.map((t) => (
+          <span
+            key={t}
+            title={t}
+            className="flex h-5 w-5 items-center justify-center rounded-full"
+            style={{ background: typeColor(t) ?? "#9aa0a9", boxShadow: "inset 0 -1px 2px rgba(0,0,0,0.22)" }}
+          >
+            <TypeIcon type={t} className="h-3.5 w-3.5" />
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-2 w-full space-y-1">
+        <MiniBar label="Vida" value={`${pokemon.current_hp}/${pokemon.max_hp}`} percent={hpPercent} color={hpColor} />
+        <MiniBar label="Experiência" value={`${pokemon.current_xp}/${pokemon.xp_to_next_level}`} percent={xpPercent} color="#38bdf8" />
+      </div>
+
+      <div className="mt-2.5 flex w-full flex-col gap-1.5">
+        <Link
+          to={`/pokemon/${pokemon.id}`}
+          className="w-full rounded-full border-2 border-neutral-200 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 transition hover:border-neutral-800 hover:text-neutral-900"
+        >
+          Ver resumo
+        </Link>
+        <button
+          onClick={onSendToProfessor}
+          className="w-full rounded-full border-2 border-neutral-200 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 transition hover:border-neutral-800 hover:text-neutral-900"
+        >
+          Enviar para Professor
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MiniBar({ label, value, percent, color }: { label: string; value: string; percent: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-[9px] font-bold text-neutral-400">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-neutral-200">
+        <div className="h-full rounded-full transition-all" style={{ width: `${percent}%`, background: color }} />
+      </div>
+    </div>
   );
 }

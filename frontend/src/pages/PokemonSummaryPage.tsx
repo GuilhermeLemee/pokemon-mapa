@@ -10,11 +10,11 @@ import type { Pokemon } from "../lib/types";
 const RED = "#dc0a2d";
 
 const STAT_LABELS: Record<string, string> = {
-  hp: "PV",
+  hp: "Vida",
   attack: "Ataque",
   defense: "Defesa",
-  "special-attack": "Atq. Esp.",
-  "special-defense": "Def. Esp.",
+  "special-attack": "Ataque Especial",
+  "special-defense": "Defesa Especial",
   speed: "Velocidade",
 };
 
@@ -47,8 +47,8 @@ export function PokemonSummaryPage() {
     return (
       <div className="rounded-3xl border border-black/5 bg-white p-6 text-center shadow">
         <p className="text-sm text-neutral-500">Pokémon não encontrado.</p>
-        <Link to="/party" className="mt-3 inline-block text-sm font-bold text-red-600">
-          ← Voltar para a Party
+        <Link to="/" className="mt-3 inline-block text-sm font-bold text-red-600">
+          ← Voltar para o Treinador
         </Link>
       </div>
     );
@@ -61,14 +61,13 @@ export function PokemonSummaryPage() {
     pokemon.xp_to_next_level > 0
       ? Math.max(0, Math.min(100, Math.round((pokemon.current_xp / pokemon.xp_to_next_level) * 100)))
       : 0;
-  const xpLeft = Math.max(0, pokemon.xp_to_next_level - pokemon.current_xp);
   const hpColor = hpPercent <= 20 ? "#e0392b" : hpPercent <= 50 ? "#f0b429" : "#4ece3a";
   const types = info?.types ?? [];
   const statTotal = info ? info.baseStats.reduce((sum, s) => sum + s.value, 0) : 0;
 
   return (
     <div className="space-y-4">
-      <Link to="/party" className="inline-flex items-center gap-1 text-sm font-bold text-neutral-500 hover:text-neutral-800">
+      <Link to="/" className="inline-flex items-center gap-1 text-sm font-bold text-neutral-500 hover:text-neutral-800">
         ← Voltar
       </Link>
 
@@ -92,7 +91,7 @@ export function PokemonSummaryPage() {
           <p className="relative text-xs font-medium text-white/70 capitalize">{pokemon.species}</p>
           <div className="relative mt-2 flex items-center justify-center gap-1.5">
             <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-black" style={{ color: RED }}>
-              Lv {pokemon.level}
+              Nível {pokemon.level}
             </span>
             {types.map((t) => (
               <span
@@ -115,7 +114,12 @@ export function PokemonSummaryPage() {
           {/* HP + XP */}
           <div className="grid gap-3 sm:grid-cols-2">
             <Bar label="Vida" value={`${pokemon.current_hp}/${pokemon.max_hp}`} percent={hpPercent} color={hpColor} />
-            <Bar label="Experiência" value={`faltam ${xpLeft}`} percent={xpPercent} color="#38bdf8" />
+            <Bar
+              label="Experiência"
+              value={`${pokemon.current_xp}/${pokemon.xp_to_next_level}`}
+              percent={xpPercent}
+              color="#38bdf8"
+            />
           </div>
 
           {/* Estatísticas base */}

@@ -6,7 +6,7 @@ import { StarfieldBackground } from "./components/StarfieldBackground";
 import { LoginPage } from "./pages/LoginPage";
 import { StarterSelectionPage } from "./pages/StarterSelectionPage";
 import { TreinadorPage } from "./pages/TreinadorPage";
-import { PartyPage } from "./pages/PartyPage";
+import { LaboratorioPage } from "./pages/LaboratorioPage";
 import { PokemonSummaryPage } from "./pages/PokemonSummaryPage";
 import { PokedexPage } from "./pages/PokedexPage";
 import { PokeMartPage } from "./pages/PokeMartPage";
@@ -42,7 +42,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<TreinadorPage />} />
-        <Route path="/party" element={<PartyPage />} />
+        <Route path="/laboratorio" element={<LaboratorioPage />} />
         <Route path="/pokemon/:id" element={<PokemonSummaryPage />} />
         <Route path="/pokedex" element={<PokedexPage />} />
         <Route path="/pokemart" element={<PokeMartPage />} />
