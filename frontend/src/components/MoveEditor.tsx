@@ -203,7 +203,8 @@ export function MoveEditor({
         </p>
       )}
       <p className={`mt-2 text-xs ${t.hint}`}>
-        Numa batalha, escolha até 6 desses golpes pra usar naquela sala — dá pra mudar a cada batalha.
+        Clique num slot para trocar ou adicionar um golpe (até 8). Numa batalha, você escolhe até 6 desses para usar
+        naquela sala.
       </p>
       {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
     </div>

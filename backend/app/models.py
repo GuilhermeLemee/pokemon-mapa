@@ -68,8 +68,9 @@ class ChooseStarterRequest(BaseModel):
 
 
 class MoveSetRequest(BaseModel):
-    """Até 8 golpes conhecidos (o "pool" do pokémon); o conjunto de até 6 usados
-    numa batalha específica é escolhido à parte, na sala de batalha."""
+    """Até 8 golpes conhecidos (o "pool" do pokémon), escolhidos pelo treinador
+    no resumo; o conjunto de até 6 usados numa batalha específica é escolhido à
+    parte, na sala de batalha."""
 
     moves: list[str] = Field(max_length=8)
 

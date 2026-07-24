@@ -116,23 +116,40 @@ export function animatedBackSpriteUrl(speciesSlug: string): string {
   return `${ANIMATED_BACK_SPRITE_BASE}/${slug}.gif`;
 }
 
+interface PokeApiPokemon {
+  id: number;
+  height: number;
+  weight: number;
+  moves: PokeApiMoveEntry[];
+  types: { type: { name: string } }[];
+  abilities: { ability: { name: string }; is_hidden: boolean }[];
+  stats: { base_stat: number; stat: { name: string } }[];
+}
+
+/** Busca /pokemon/{slug}; se o slug for uma espécie com forma (ex.: shaymin,
+ * giratina, meloetta), o endpoint direto dá 404 — então resolvemos a variedade
+ * padrão via /pokemon-species/{slug} e buscamos o pokémon dela. */
+async function fetchPokemonData(slug: string): Promise<PokeApiPokemon> {
+  const direct = await fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`);
+  if (direct.ok) return direct.json();
+
+  const speciesRes = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${slug}`);
+  if (!speciesRes.ok) throw new Error(`Espécie não encontrada: ${slug}`);
+  const species: { varieties?: { is_default: boolean; pokemon: { name: string } }[] } = await speciesRes.json();
+  const variety = species.varieties?.find((v) => v.is_default) ?? species.varieties?.[0];
+  if (!variety) throw new Error(`Sem variedade padrão: ${slug}`);
+  const defaultRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${variety.pokemon.name}`);
+  if (!defaultRes.ok) throw new Error(`Pokémon não encontrado: ${variety.pokemon.name}`);
+  return defaultRes.json();
+}
+
 function fetchSpeciesDetail(speciesSlug: string): Promise<SpeciesDetail> {
   const slug = speciesSlug.trim().toLowerCase().replace(/\s+/g, "-");
   if (!speciesDetailCache.has(slug)) {
     speciesDetailCache.set(
       slug,
-      fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`)
-        .then((res) => res.json())
-        .then(
-          (data: {
-            id: number;
-            height: number;
-            weight: number;
-            moves: PokeApiMoveEntry[];
-            types: { type: { name: string } }[];
-            abilities: { ability: { name: string }; is_hidden: boolean }[];
-            stats: { base_stat: number; stat: { name: string } }[];
-          }) => {
+      fetchPokemonData(slug).then(
+          (data: PokeApiPokemon) => {
             const byName = new Map<string, number>();
             for (const entry of data.moves) {
               const levelUpDetails = entry.version_group_details.filter(
